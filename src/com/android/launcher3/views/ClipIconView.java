@@ -59,6 +59,7 @@ import com.android.launcher3.graphics.ThemeManager;
 public class ClipIconView extends View implements ClipPathView {
 
     private static final Rect sTmpRect = new Rect();
+    private static final Rect mRect = new Rect();
 
     private final int mBlurSizeOutline;
     private final boolean mIsRtl;
@@ -205,7 +206,7 @@ public class ClipIconView extends View implements ClipPathView {
                     : (int) (((height * drawableScale) - height) / 2);
             int diffX = dp.getDeviceProperties().isLandscape() ? (int) (((width * drawableScale) - width) / 2)
                     : 0;
-            sTmpRect.set(mFinalDrawableBounds);
+            sTmpRect.set(mRect);
             sTmpRect.offset(diffX, diffY);
             mForeground.setBounds(sTmpRect);
         }
@@ -214,7 +215,7 @@ public class ClipIconView extends View implements ClipPathView {
     }
 
     private void setBackgroundDrawableBounds(float scale, boolean isLandscape) {
-        sTmpRect.set(mFinalDrawableBounds);
+        sTmpRect.set(mRect);
         Utilities.scaleRectAboutCenter(sTmpRect, scale);
         // Since the drawable is at the top of the view, we need to offset to keep it centered.
         if (isLandscape) {
@@ -269,7 +270,10 @@ public class ClipIconView extends View implements ClipPathView {
             if (!mIsFolderIcon) {
                 mFinalDrawableBounds.inset(iconOffset - blurMargin, iconOffset - blurMargin);
             }
-            mForeground.setBounds(mFinalDrawableBounds);
+           mRect.set(mFinalDrawableBounds);
+ 	   mRect.inset(mFinalDrawableBounds.width()/4, mFinalDrawableBounds.height()/4);
+
+            mForeground.setBounds(mRect);
             mBackground.setBounds(mFinalDrawableBounds);
 
             mStartRevealRect.set(0, 0, originalWidth, originalHeight);

@@ -329,7 +329,10 @@ public class DragView extends FrameLayout {
                 if (mFgSpringDrawable == null) {
                     mFgSpringDrawable = new ColorDrawable(Color.TRANSPARENT);
                 }
-                mFgSpringDrawable.setBounds(bounds);
+		Rect mRect = new Rect();
+		mRect.set(bounds);
+        	mRect.inset(bounds.width()/4, bounds.height()/4);
+		mFgSpringDrawable.setBounds(mRect);
 
                 new Handler(mActivity.asContext().getMainLooper()).post(() ->
                         mOnDragStartCallback.add(() -> {
