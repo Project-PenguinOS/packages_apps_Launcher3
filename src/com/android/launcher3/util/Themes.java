@@ -30,6 +30,7 @@ import android.util.TypedValue;
 
 import androidx.annotation.ColorInt;
 
+import com.android.launcher3.LauncherFiles;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.icons.GraphicsUtils;
@@ -40,6 +41,21 @@ import com.android.launcher3.views.ActivityContext;
  */
 @SuppressWarnings("NewApi")
 public class Themes {
+
+    /**
+     * Whether the "Nothing OS" themed-icon style is enabled. Mirrors the same shared-pref key
+     * ("pref_nos_themed_icons") read by frameworks/libs/systemui's ThemedIconDelegate, so the
+     * PenguinOS setup wizard can toggle the whole NOS icon look from a single switch.
+     */
+    public static boolean isNosThemedIconsEnabled(Context context) {
+        try {
+            return context
+                    .getSharedPreferences(LauncherFiles.SHARED_PREFERENCES_KEY, Context.MODE_PRIVATE)
+                    .getBoolean("pref_nos_themed_icons", false);
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     /** Gets the WallpaperColorHints and then uses those to get the correct activity theme res. */
     public static int getActivityThemeRes(Context context) {
