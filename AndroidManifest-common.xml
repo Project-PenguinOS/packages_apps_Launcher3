@@ -49,6 +49,7 @@
                      android:featureFlag="android.security.app_lock_apis" />
     <uses-permission android:name="com.android.systemui.permission.LAUNCH_ACCESSIBILITY_SHORTCUT_CHOOSER_DIALOG" />
     <uses-permission android:name="android.permission.ACCESS_CONTEXTUAL_SEARCH" />
+    <uses-permission android:name="android.permission.REGISTER_STATS_PULL_ATOM"/>
 
     <permission
         android:name="${applicationId}.permission.GRID_CONTROL"
