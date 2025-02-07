@@ -13,6 +13,7 @@
             android:defaultValue="false"
             android:persistent="true"
             launcher:iconSpaceReserved="false" />
+
    </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>
