@@ -276,4 +276,9 @@
     <string name="remove_all_views_from_home_screen_desc">Home screen will be cleared. Do you want to continue?</string>
     <!-- Message shown when all home screen views are removed -->
     <string name="home_screen_all_views_removed_msg">Home screen cleared</string>
+
+    <!-- navbar burn in -->
+    <string name="navbar_burn_in_protection_title">Navbar burn-in protection</string>
+    <string name="navbar_burn_in_protection_summary">Periodically shift the navigation handle to prevent display burn-in</string>
+    <string name="navbar_burn_in_interval_title">Shift interval</string>
 </resources>

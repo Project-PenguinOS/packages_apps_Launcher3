@@ -33,6 +33,8 @@ import android.content.res.Resources;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.provider.Settings;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.view.ViewOutlineProvider;
 
@@ -42,6 +44,7 @@ import androidx.annotation.Nullable;
 import com.android.launcher3.ConstantItem;
 import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.Flags;
+import com.android.launcher3.LauncherPrefChangeListener;
 import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.anim.AnimatedFloat;
@@ -60,6 +63,8 @@ import com.android.wm.shell.shared.handles.RegionSamplingHelper;
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * Handles properties/data collection, then passes the results to our stashed handle View to render.
@@ -104,6 +109,19 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
     private TaskbarControllers mControllers;
     private int mTaskbarSize;
 
+    // Burn-in protection
+    private Timer mBurnInTimer;
+    private float mTranslationXForBurnIn;
+    private float mTranslationYForBurnIn;
+    private float mHorizontalMaxShift;
+    private float mVerticalMaxShift;
+    private float mHorizontalShiftStep;
+    private float mVerticalShiftStep;
+    private final Handler mUiHandler = new Handler(Looper.getMainLooper());
+    private boolean mBurnInProtectionEnabled;
+    private long mBurnInShiftIntervalMs;
+    private final LauncherPrefChangeListener mBurnInPrefListener;
+
     // The bounds we want to clip to in the settled state when showing the stashed handle.
     private final Rect mStashedHandleBounds = new Rect();
     private float mStashedHandleRadius;
@@ -127,11 +145,41 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
             StashedHandleView stashedHandleView) {
         mActivityRef = new WeakReference<>(activity);
         mPrefs = LauncherPrefs.get(activity);
+        mBurnInPrefListener = key -> {
+            if (LauncherPrefs.NAVBAR_BURN_IN_PROTECTION.getSharedPrefKey().equals(key)) {
+                mBurnInProtectionEnabled = mPrefs.get(LauncherPrefs.NAVBAR_BURN_IN_PROTECTION);
+                if (mBurnInProtectionEnabled) {
+                    startBurnInTimer();
+                } else {
+                    stopBurnInTimer();
+                    mTranslationXForBurnIn = 0;
+                    mTranslationYForBurnIn = 0;
+                    updateTranslationY();
+                }
+            } else if (LauncherPrefs.NAVBAR_BURN_IN_INTERVAL.getSharedPrefKey().equals(key)) {
+                mBurnInShiftIntervalMs = mPrefs.get(LauncherPrefs.NAVBAR_BURN_IN_INTERVAL) * 1000L;
+                if (mBurnInProtectionEnabled) {
+                    stopBurnInTimer();
+                    startBurnInTimer();
+                }
+            }
+        };
+
         mStashedHandleView = stashedHandleView;
         mTaskbarStashedHandleAlpha = new MultiValueAlpha(mStashedHandleView, NUM_ALPHA_CHANNELS);
         mTaskbarStashedHandleAlpha.setUpdateVisibility(true);
         mStashedHandleView.updateHandleColor(
                 mPrefs.get(STASHED_HANDLE_REGION_IS_DARK), false /* animate */);
+        Resources resources = activity.getResources();
+
+        mBurnInProtectionEnabled = mPrefs.get(LauncherPrefs.NAVBAR_BURN_IN_PROTECTION);
+        mBurnInShiftIntervalMs = mPrefs.get(LauncherPrefs.NAVBAR_BURN_IN_INTERVAL) * 1000L;
+
+        mHorizontalMaxShift = resources.getDimension(R.dimen.burn_in_protection_horizontal_shift);
+        mVerticalMaxShift = resources.getDimension(R.dimen.burn_in_protection_vertical_shift);
+
+        mHorizontalShiftStep = mHorizontalMaxShift / 3f;
+        mVerticalShiftStep = mVerticalMaxShift / 3f;
     }
 
     public void init(TaskbarControllers controllers) {
@@ -242,6 +290,9 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
             TaskStackChangeListeners.getInstance().registerTaskStackListener(
                     mTaskStackChangeListener);
         }
+        startBurnInTimer();
+        mPrefs.addListener(mBurnInPrefListener,
+                LauncherPrefs.NAVBAR_BURN_IN_PROTECTION, LauncherPrefs.NAVBAR_BURN_IN_INTERVAL);
     }
 
     /**
@@ -279,6 +330,9 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
             TaskStackChangeListeners.getInstance().unregisterTaskStackListener(
                     mTaskStackChangeListener);
         }
+        mPrefs.removeListener(mBurnInPrefListener,
+                LauncherPrefs.NAVBAR_BURN_IN_PROTECTION, LauncherPrefs.NAVBAR_BURN_IN_INTERVAL);
+        stopBurnInTimer();
     }
 
     public MultiValueAlpha getStashedHandleAlpha() {
@@ -392,7 +446,8 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
     }
 
     private void updateTranslationY() {
-        mStashedHandleView.setTranslationY(mTranslationYForSwipe + mTranslationYForStash);
+        mStashedHandleView.setTranslationX(mTranslationXForBurnIn);
+        mStashedHandleView.setTranslationY(mTranslationYForSwipe + mTranslationYForStash + mTranslationYForBurnIn);
     }
 
     /**
@@ -483,5 +538,42 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
     @Override
     public Rect getBoundsOnScreen() {
         return mStashedHandleView.getSampledRegion();
+    }
+    private void startBurnInTimer() {
+        if (!mBurnInProtectionEnabled || mBurnInTimer != null)
+		return;
+
+        mBurnInTimer = new Timer();
+        mBurnInTimer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                mUiHandler.post(() -> shiftHandle());
+            }
+        }, 0, mBurnInShiftIntervalMs);
+    }
+
+    private void stopBurnInTimer() {
+        if (mBurnInTimer != null) {
+            mBurnInTimer.cancel();
+            mBurnInTimer = null;
+        }
+    }
+
+    private void shiftHandle() {
+        // Horizontal shift logic
+        mTranslationXForBurnIn += mHorizontalShiftStep;
+        if (mTranslationXForBurnIn >= mHorizontalMaxShift ||
+            mTranslationXForBurnIn <= -mHorizontalMaxShift) {
+            mHorizontalShiftStep *= -1;
+        }
+
+        // Vertical shift logic
+        mTranslationYForBurnIn += mVerticalShiftStep;
+        if (mTranslationYForBurnIn >= mVerticalMaxShift ||
+            mTranslationYForBurnIn <= -mVerticalMaxShift) {
+            mVerticalShiftStep *= -1;
+        }
+
+        updateTranslationY();
     }
 }
