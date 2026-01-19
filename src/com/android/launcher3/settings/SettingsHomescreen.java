@@ -178,9 +178,11 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
 
         private static final String KEY_QUICKSPACE_STYLE = "pref_quickspace_style";
         private static final String KEY_NEO_ACCENT = "pref_quickspace_neo_accent";
+        private static final String KEY_QUICKSPACE_BATTERY = "pref_quickspace_battery";
 
         private ListPreference mQuickspaceStyle;
         private Preference mNeoAccent;
+        private Preference mQuickspaceBattery;
 
         private static final String KEY_MINUS_ONE = "pref_enable_minus_one";
 
@@ -222,6 +224,7 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
 
             mQuickspaceStyle = screen.findPreference(KEY_QUICKSPACE_STYLE);
             mNeoAccent = screen.findPreference(KEY_NEO_ACCENT);
+            mQuickspaceBattery = screen.findPreference(KEY_QUICKSPACE_BATTERY);
 
             updateNeoAccentVisibility();
 
@@ -393,12 +396,19 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
         }
 
         private void updateNeoAccentVisibility() {
-            if (mNeoAccent == null || mQuickspaceStyle == null) {
+            if (mQuickspaceStyle == null) {
                 return;
             }
             // The "Neoteric" style has a value of "2" in your arrays.xml
             boolean isNeoStyle = "2".equals(mQuickspaceStyle.getValue());
-            mNeoAccent.setVisible(isNeoStyle);
+
+            if (mNeoAccent != null) {
+                mNeoAccent.setVisible(isNeoStyle);
+            }
+
+            if (mQuickspaceBattery != null) {
+                mQuickspaceBattery.setVisible(isNeoStyle);
+            }
         }
     }
 }
