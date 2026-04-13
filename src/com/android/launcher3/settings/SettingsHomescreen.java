@@ -117,11 +117,13 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
                 LauncherPrefs.DARK_STATUS_BAR.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.QUICKSPACE_UI_STYLE.getSharedPrefKey().equals(key) ||
+                LauncherPrefs.QUICKSPACE_NEO_MINIMAL.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_PSONALITY.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_NOWPLAYING.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_WEATHER.getSharedPrefKey().equals(key) ||
                 LauncherPrefs.SHOW_QUICKSPACE_WEATHER_CITY.getSharedPrefKey().equals(key) ||
-                LauncherPrefs.SHOW_QUICKSPACE_WEATHER_TEXT.getSharedPrefKey().equals(key)) {
+                LauncherPrefs.SHOW_QUICKSPACE_WEATHER_TEXT.getSharedPrefKey().equals(key) ||
+                LauncherPrefs.QUICKSPACE_NEO_ACCENT.getSharedPrefKey().equals(key)) {
             LauncherAppState.INSTANCE.executeIfCreated(app -> app.setNeedsRestart());
         }
     }
@@ -179,13 +181,17 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
 
         private static final String KEY_QUICKSPACE_STYLE = "pref_quickspace_style";
         private static final String KEY_NEO_ACCENT = "pref_quickspace_neo_accent";
+        private static final String KEY_NEO_MINIMAL = "pref_quickspace_neo_minimal";
         private static final String KEY_QUICKSPACE_BATTERY = "pref_quickspace_battery";
 
         private static final String KEY_CLEAR_HOME_SCREEN = "pref_clear_home_screen";
 
         private ListPreference mQuickspaceStyle;
         private Preference mNeoAccent;
+        private Preference mNeoMinimal;
         private Preference mQuickspaceBattery;
+        private Preference mQuickspaceWeatherCity;
+        private Preference mQuickspaceWeatherText;
 
         private static final String KEY_MINUS_ONE = "pref_enable_minus_one";
 
@@ -227,8 +233,12 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
 
             mQuickspaceStyle = screen.findPreference(KEY_QUICKSPACE_STYLE);
             mNeoAccent = screen.findPreference(KEY_NEO_ACCENT);
+            mNeoMinimal = screen.findPreference(KEY_NEO_MINIMAL);
             mQuickspaceBattery = screen.findPreference(KEY_QUICKSPACE_BATTERY);
-            
+            mQuickspaceWeatherCity =
+                    screen.findPreference(LauncherPrefs.SHOW_QUICKSPACE_WEATHER_CITY.getSharedPrefKey());
+            mQuickspaceWeatherText =
+                    screen.findPreference(LauncherPrefs.SHOW_QUICKSPACE_WEATHER_TEXT.getSharedPrefKey());
             Preference clearHomeScreenPref = screen.findPreference(KEY_CLEAR_HOME_SCREEN);
             if (clearHomeScreenPref != null) {
                 clearHomeScreenPref.setOnPreferenceClickListener(pref -> {
@@ -244,7 +254,7 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
                 });
             }
 
-            updateNeoAccentVisibility();
+            updateQuickspaceStylePreferenceVisibility();
 
             updateIsGoogleAppEnabled();
 
@@ -409,23 +419,37 @@ public class SettingsHomescreen extends CollapsingToolbarBaseActivity
         @Override
         public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
             if (KEY_QUICKSPACE_STYLE.equals(key)) {
-                updateNeoAccentVisibility();
+                updateQuickspaceStylePreferenceVisibility();
             }
         }
 
-        private void updateNeoAccentVisibility() {
+        private void updateQuickspaceStylePreferenceVisibility() {
             if (mQuickspaceStyle == null) {
                 return;
             }
-            // The "Neoteric" style has a value of "2" in your arrays.xml
-            boolean isNeoStyle = "2".equals(mQuickspaceStyle.getValue());
+
+            String quickspaceStyle = mQuickspaceStyle.getValue();
+            boolean isNeoFamilyStyle = "2".equals(quickspaceStyle) || "3".equals(quickspaceStyle);
+            boolean isNeoPagedStyle = "3".equals(quickspaceStyle);
 
             if (mNeoAccent != null) {
-                mNeoAccent.setVisible(isNeoStyle);
+                mNeoAccent.setVisible(isNeoFamilyStyle);
+            }
+
+            if (mNeoMinimal != null) {
+                mNeoMinimal.setVisible(isNeoFamilyStyle);
             }
 
             if (mQuickspaceBattery != null) {
-                mQuickspaceBattery.setVisible(isNeoStyle);
+                mQuickspaceBattery.setVisible(isNeoFamilyStyle);
+            }
+
+            if (mQuickspaceWeatherCity != null) {
+                mQuickspaceWeatherCity.setVisible(!isNeoPagedStyle);
+            }
+
+            if (mQuickspaceWeatherText != null) {
+                mQuickspaceWeatherText.setVisible(!isNeoPagedStyle);
             }
         }
     }
