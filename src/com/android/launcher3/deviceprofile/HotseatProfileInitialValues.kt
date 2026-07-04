@@ -167,12 +167,12 @@ data class HotseatProfileInitialValues(
                     )
                 else res.getDimensionPixelSize(R.dimen.spring_loaded_hotseat_top_margin)
 
-            val hotseatQsbHeight = res.getDimensionPixelSize(R.dimen.qsb_widget_height)
-            val hotseatQsbShadowHeight = res.getDimensionPixelSize(R.dimen.qsb_shadow_height)
+            val hotseatQsbHeight = qsbHeight
+            val hotseatQsbShadowHeight = if (qsbHeight > 0) res.getDimensionPixelSize(R.dimen.qsb_shadow_height) else 0
 
-            var hotseatQsbSpace: Int = responsiveHotseatSpec.hotseatQsbSpace
+            var hotseatQsbSpace: Int = if (qsbHeight > 0) responsiveHotseatSpec.hotseatQsbSpace else 0
             val hotseatBarBottomSpace: Int = responsiveHotseatSpec.edgePadding
-            var minQsbMargin = res.getDimensionPixelSize(R.dimen.min_qsb_margin)
+            var minQsbMargin = if (qsbHeight > 0) res.getDimensionPixelSize(R.dimen.min_qsb_margin) else 0
 
             var barBottomSpacePx = 0
             // Have a little space between the inset and the QSB
@@ -286,30 +286,17 @@ data class HotseatProfileInitialValues(
                 }
             val hotseatBarWorkspaceSpacePx =
                 res.getDimensionPixelSize(R.dimen.dynamic_grid_hotseat_side_padding)
-            val hotseatQsbHeight = res.getDimensionPixelSize(R.dimen.qsb_widget_height)
-            val hotseatQsbShadowHeight = res.getDimensionPixelSize(R.dimen.qsb_shadow_height)
+            val hotseatQsbHeight = qsbHeight
+            val hotseatQsbShadowHeight = if (qsbHeight > 0) res.getDimensionPixelSize(R.dimen.qsb_shadow_height) else 0
 
-            var hotseatQsbSpace = pxFromDp(inv.hotseatQsbSpace[typeIndex], metrics)
+            var hotseatQsbSpace = if (qsbHeight > 0) pxFromDp(inv.hotseatQsbSpace[typeIndex], metrics) else 0
             var hotseatBarBottomSpace = pxFromDp(inv.hotseatBarBottomSpace[typeIndex], metrics)
 
-            var minQsbMargin = res.getDimensionPixelSize(R.dimen.min_qsb_margin)
+            val minQsbMargin = if (qsbHeight > 0) res.getDimensionPixelSize(R.dimen.min_qsb_margin) else 0
 
             var barBottomSpacePx = 0
             // Have a little space between the inset and the QSB
             if (deviceProperties.insets.bottom + minQsbMargin > hotseatBarBottomSpace) {
-                val availableSpace: Int =
-                    hotseatQsbSpace - (deviceProperties.insets.bottom - hotseatBarBottomSpace)
-
-                // Only change the spaces if there is space
-                if (availableSpace > 0) {
-                    // Make sure there is enough space between hotseat/QSB and QSB/navBar
-                    if (availableSpace < minQsbMargin * 2) {
-                        minQsbMargin = availableSpace / 2
-                        hotseatQsbSpace = minQsbMargin
-                    } else {
-                        hotseatQsbSpace -= minQsbMargin
-                    }
-                }
                 barBottomSpacePx = deviceProperties.insets.bottom + minQsbMargin
             } else {
                 barBottomSpacePx = hotseatBarBottomSpace
