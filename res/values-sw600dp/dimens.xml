@@ -46,4 +46,7 @@
 
 <!-- Workspace grid visualization parameters -->
     <dimen name="grid_visualization_horizontal_cell_spacing">6dp</dimen>
+
+    <!-- Wallpaper carousel -->
+    <dimen name="homescreen_options_popup_max_width">400dp</dimen>
 </resources>
