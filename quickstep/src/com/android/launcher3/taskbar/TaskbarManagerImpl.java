@@ -345,6 +345,15 @@ public class TaskbarManagerImpl {
                 v -> onSettingChanged(v, TaskbarActivityContext::isInKidsMode));
         cleanupTasks.addCloseable(getTaskbarUiThread(), navBarKidsModeSafeCloseable);
 
+        var navBarHintSafeCloseable = settingsCache.getListenableRef(
+                com.android.launcher3.util.SettingsCache.NAVIGATION_BAR_HINT_URI).forEach(
+                getTaskbarUiThread(),
+                v -> {
+                    recreateTaskbars();
+                    return kotlin.Unit.INSTANCE;
+                });
+        cleanupTasks.addCloseable(getTaskbarUiThread(), navBarHintSafeCloseable);
+
         SimpleBroadcastReceiver shutdownReceiver = new SimpleBroadcastReceiver(
                 mBaseContext,
                 UI_HELPER_EXECUTOR,

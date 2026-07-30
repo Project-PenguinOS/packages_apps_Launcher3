@@ -150,10 +150,13 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
                     .getDimensionPixelSize(R.dimen.taskbar_stashed_handle_width);
         }
         int taskbarBottomMargin = deviceProfile.getTaskbarProfile().getBottomMargin();
-        mStashedHandleView.getLayoutParams().height = mTaskbarSize + taskbarBottomMargin;
+        boolean navHintEnabled = com.android.launcher3.util.SettingsCache.INSTANCE.get(activity).getValue(
+                com.android.launcher3.util.SettingsCache.NAVIGATION_BAR_HINT_URI);
+        mStashedHandleView.getLayoutParams().height = navHintEnabled
+                ? mTaskbarSize + taskbarBottomMargin : 0;
 
         mTaskbarStashedHandleAlpha.get(ALPHA_INDEX_STASHED).setValue(
-                activity.isPhoneGestureNavMode() ? 1 : 0);
+                (activity.isPhoneGestureNavMode() && navHintEnabled) ? 1 : 0);
         mTaskbarStashedHandleHintScale.updateValue(1f);
 
         final int stashedTaskbarHeight = mControllers.taskbarStashController.getStashedHeight();
