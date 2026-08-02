@@ -18,6 +18,10 @@ package com.android.launcher3.graphics
 
 import android.content.Context
 import android.content.res.Resources
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
 import androidx.annotation.AnyThread
 import com.android.launcher3.LauncherPrefChangeListener
 import com.android.launcher3.LauncherPrefs
@@ -44,6 +48,7 @@ import com.android.launcher3.util.DaggerSingletonTracker
 import com.android.launcher3.util.ListenableRef
 import com.android.launcher3.util.LooperExecutor
 import com.android.launcher3.util.MutableListenableRef
+import com.android.launcher3.util.Themes
 import com.android.launcher3.util.SafeCloseable
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
@@ -105,8 +110,17 @@ constructor(
         }
         prefs.addListener(prefListener, PREF_ICON_SHAPE)
         lifecycle.addCloseable(themePreference.forEach(mainExecutor) { verifyIconState() })
+
+        val nosObserver =
+            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                override fun onChange(selfChange: Boolean) = verifyIconState()
+            }
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor("nos_themed_icons"), false, nosObserver)
+
         lifecycle.addCloseable {
             prefs.removeListener(prefListener, PREF_ICON_SHAPE)
+            context.contentResolver.unregisterContentObserver(nosObserver)
             iconState.closeController()
         }
     }
@@ -181,7 +195,9 @@ constructor(
                     ShapeDelegate.GenericPathShape(path)
                 }
 
-        val themeKey = themePreference.value
+        val themeKey =
+            themePreference.value
+                ?: if (Themes.isNosThemedIconsEnabled(context)) MONO_THEME_VALUE else null
         val themeCode = themeKey?.toString() ?: "no-theme"
 
         val iconControllerFactory =
