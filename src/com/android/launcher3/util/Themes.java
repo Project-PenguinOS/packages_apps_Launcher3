@@ -19,8 +19,12 @@ package com.android.launcher3.util;
 import static android.app.WallpaperColors.HINT_SUPPORTS_DARK_TEXT;
 import static android.app.WallpaperColors.HINT_SUPPORTS_DARK_THEME;
 
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.res.TypedArray;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -42,18 +46,50 @@ import com.android.launcher3.views.ActivityContext;
 @SuppressWarnings("NewApi")
 public class Themes {
 
+    private static final String NOS_THEMED_ICONS = "nos_themed_icons";
+    private static volatile Boolean sNosThemedIcons = null;
+
     /**
      * Whether the "Nothing OS" themed-icon style is enabled. Backed by the Settings.Secure key
      * "nos_themed_icons" (mirrored by frameworks/libs/systemui's ThemedIconDelegate) so the
      * PenguinOS setup wizard can toggle the whole NOS icon look from a single switch.
      */
     public static boolean isNosThemedIconsEnabled(Context context) {
-        try {
-            return Settings.Secure.getInt(
-                    context.getContentResolver(), "nos_themed_icons", 0) != 0;
-        } catch (Exception e) {
-            return false;
+        final Boolean cached = sNosThemedIcons;
+        if (cached != null) {
+            return cached;
         }
+        return initNosThemedIconsCache(context);
+    }
+
+    private static synchronized boolean initNosThemedIconsCache(Context context) {
+        if (sNosThemedIcons != null) {
+            return sNosThemedIcons;
+        }
+        final ContentResolver cr = context.getApplicationContext().getContentResolver();
+        boolean value;
+        try {
+            value = Settings.Secure.getInt(cr, NOS_THEMED_ICONS, 0) != 0;
+        } catch (Exception e) {
+            value = false;
+        }
+        try {
+            cr.registerContentObserver(Settings.Secure.getUriFor(NOS_THEMED_ICONS), false,
+                    new ContentObserver(new Handler(Looper.getMainLooper())) {
+                        @Override
+                        public void onChange(boolean selfChange) {
+                            try {
+                                sNosThemedIcons =
+                                        Settings.Secure.getInt(cr, NOS_THEMED_ICONS, 0) != 0;
+                            } catch (Exception e) {
+                                sNosThemedIcons = false;
+                            }
+                        }
+                    });
+        } catch (Exception ignored) {
+        }
+        sNosThemedIcons = value;
+        return value;
     }
 
     /** Gets the WallpaperColorHints and then uses those to get the correct activity theme res. */
