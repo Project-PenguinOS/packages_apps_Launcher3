@@ -70,6 +70,7 @@ import com.android.launcher3.util.DaggerSingletonTracker;
 import com.android.launcher3.util.ListenableDiffAwareRef;
 import com.android.launcher3.util.LooperExecutor;
 import com.android.launcher3.util.Partner;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.util.SimpleBroadcastReceiver;
 import com.android.launcher3.util.TaskbarModeUtil;
 import com.android.launcher3.util.WindowBounds;
@@ -414,6 +415,13 @@ public class InvariantDeviceProfile {
         inlineNavButtonsEndSpacing = closestProfile.inlineNavButtonsEndSpacing;
 
         iconSize = displayOption.iconSizes;
+        if (Themes.isNosThemedIconsEnabled(context)) {
+            final float nosScale = 1.15f;
+            iconSize = Arrays.copyOf(iconSize, iconSize.length);
+            for (int i = 0; i < iconSize.length; i++) {
+                iconSize[i] *= nosScale;
+            }
+        }
         float maxIconSize = iconSize[0];
         for (int i = 1; i < iconSize.length; i++) {
             maxIconSize = Math.max(maxIconSize, iconSize[i]);
