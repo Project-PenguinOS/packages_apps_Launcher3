@@ -43,6 +43,7 @@ import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.preference.Preference;
+import androidx.preference.TwoStatePreference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceFragmentCompat.OnPreferenceStartFragmentCallback;
 import androidx.preference.PreferenceFragmentCompat.OnPreferenceStartScreenCallback;
@@ -70,6 +71,8 @@ public class SettingsActivity extends FragmentActivity
     static final String DEVELOPER_OPTIONS_KEY = "pref_developer_options";
 
     public static final String FIXED_LANDSCAPE_MODE = "pref_fixed_landscape_mode";
+
+    private static final String NOS_THEMED_ICONS_KEY = "pref_nos_themed_icons";
 
     private static final String NOTIFICATION_DOTS_PREFERENCE_KEY = "pref_icon_badging";
 
@@ -301,6 +304,18 @@ public class SettingsActivity extends FragmentActivity
         protected boolean initPreference(Preference preference) {
             LauncherDisplayInfo info = DisplayController.INSTANCE.get(getContext()).getInfo();
             switch (preference.getKey()) {
+                case NOS_THEMED_ICONS_KEY:
+                    // "Nothing OS icons" — backed by Settings.Secure.nos_themed_icons, the same
+                    // flag the PenguinOS setup wizard writes and iconloaderlib/ThemeManager read.
+                    ((TwoStatePreference) preference).setChecked(
+                            Settings.Secure.getInt(getContext().getContentResolver(),
+                                    "nos_themed_icons", 0) != 0);
+                    preference.setOnPreferenceChangeListener((pref, newValue) -> {
+                        Settings.Secure.putInt(getContext().getContentResolver(),
+                                "nos_themed_icons", ((boolean) newValue) ? 1 : 0);
+                        return true;
+                    });
+                    return true;
                 case NOTIFICATION_DOTS_PREFERENCE_KEY:
                     return BuildConfig.NOTIFICATION_DOTS_ENABLED;
                 case DEVELOPER_OPTIONS_KEY:

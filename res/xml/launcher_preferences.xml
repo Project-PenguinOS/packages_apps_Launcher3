@@ -37,4 +37,10 @@
         launcher:logIdOn="613"
         launcher:logIdOff="614" />
 
+    <SwitchPreference
+        android:key="pref_nos_themed_icons"
+        android:title="@string/nos_themed_icons_title"
+        android:summary="@string/nos_themed_icons_summary"
+        android:persistent="false" />
+
 </androidx.preference.PreferenceScreen>

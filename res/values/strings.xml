@@ -708,4 +708,8 @@
     <string name="folder_creator_add" translatable="false">Add</string>
     <string name="folder_creator_cancel" translatable="false">Cancel</string>
 
+    <!-- Nothing OS icons toggle -->
+    <string name="nos_themed_icons_title">Nothing OS icons</string>
+    <string name="nos_themed_icons_summary">Monochrome, dot-style icons on the home screen</string>
+
 </resources>
