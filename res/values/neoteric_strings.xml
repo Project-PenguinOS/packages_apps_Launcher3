@@ -116,9 +116,19 @@
     <!-- Background opacity -->
     <string name="background_opacity_title">Background opacity</string>
 
+    <!-- Hotseat QSB -->
+    <string name="label_search">Search</string>
+    <string name="label_voice_search">Voice search</string>
+    <string name="label_lens">Google Lens</string>
+    <string name="label_ai_mode">Assistant search</string>
+
     <!-- Search bar -->
     <string name="pref_show_hotseat_qsb_title">Show search bar</string>
     <string name="pref_show_hotseat_qsb_summary">At the bottom of your home screen</string>
+    <string name="dock_ai_music_search_title">Music search</string>
+    <string name="dock_ai_music_search_summary">Start music search on pressing AI mode button</string>
+    <string name="qsb_outer_opacity_title">Search bar outer opacity</string>
+    <string name="qsb_outer_opacity_summary">Adjust the opacity of the search bar outer shape</string>
 
     <!-- App drawer searchbar -->
     <string name="drawer_search_title">App search bar</string>

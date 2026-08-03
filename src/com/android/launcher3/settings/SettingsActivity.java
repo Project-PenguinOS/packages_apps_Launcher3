@@ -338,8 +338,7 @@ public class SettingsActivity extends CollapsingToolbarBaseActivity
                     );
                     return !info.isLargeScreen(info.realBounds);
                 case SHOW_HOTSEAT_QSB_KEY:
-                    return Flags.enableQsbOnHotseat() && launcherApps != null &&
-                            launcherApps.isPackageEnabled(SEARCH_PACKAGE, myUserHandle());
+                    return Flags.enableQsbOnHotseat();
             }
             return true;
         }
