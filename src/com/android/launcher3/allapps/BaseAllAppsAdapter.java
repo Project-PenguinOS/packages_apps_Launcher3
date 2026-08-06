@@ -32,6 +32,7 @@ import android.view.View.OnClickListener;
 import android.view.View.OnFocusChangeListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
@@ -41,7 +42,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.android.launcher3.BubbleTextView;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.search.SearchAdapterProvider;
+import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.model.data.AppInfo;
+import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.popup.PopupContainerWithArrow;
 import com.android.launcher3.touch.CustomActionsListener;
 import com.android.launcher3.views.ActivityContext;
@@ -67,11 +70,13 @@ public abstract class BaseAllAppsAdapter
     public static final int VIEW_TYPE_PRIVATE_SPACE_SYS_APPS_DIVIDER = 1 << 7;
     public static final int VIEW_TYPE_BOTTOM_VIEW_TO_SCROLL_TO = 1 << 8;
     public static final int VIEW_TYPE_PRIVATE_SPACE_APP_ICON = 1 << 9;
-    public static final int NEXT_ID = 10;
+    public static final int VIEW_TYPE_FOLDER = 1 << 10;
+    public static final int NEXT_ID = 11;
 
     // Common view type masks
     public static final int VIEW_TYPE_MASK_DIVIDER = VIEW_TYPE_ALL_APPS_DIVIDER;
-    public static final int VIEW_TYPE_MASK_ICON = VIEW_TYPE_ICON | VIEW_TYPE_PRIVATE_SPACE_APP_ICON;
+    public static final int VIEW_TYPE_MASK_ICON =
+            VIEW_TYPE_ICON | VIEW_TYPE_PRIVATE_SPACE_APP_ICON | VIEW_TYPE_FOLDER;
 
     public static final int VIEW_TYPE_MASK_PRIVATE_SPACE_HEADER =
             VIEW_TYPE_PRIVATE_SPACE_HEADER;
@@ -109,6 +114,7 @@ public abstract class BaseAllAppsAdapter
         public AppInfo itemInfo = null;
         // Private App Decorator
         public SectionDecorationInfo decorationInfo = null;
+        public FolderInfo folderInfo = null;
         public AdapterItem(int viewType) {
             this.viewType = viewType;
         }
@@ -122,6 +128,12 @@ public abstract class BaseAllAppsAdapter
             return item;
         }
 
+        public static AdapterItem asFolder(FolderInfo folderInfo) {
+            AdapterItem item = new AdapterItem(VIEW_TYPE_FOLDER);
+            item.folderInfo = folderInfo;
+            return item;
+        }
+
         public static AdapterItem asAppWithDecorationInfo(AppInfo appInfo,
                 SectionDecorationInfo decorationInfo, boolean isPrivateSpaceApp) {
             AdapterItem item = new AdapterItem(isPrivateSpaceApp ? VIEW_TYPE_PRIVATE_SPACE_APP_ICON
@@ -132,7 +144,7 @@ public abstract class BaseAllAppsAdapter
         }
 
         protected boolean isCountedForAccessibility() {
-            return viewType == VIEW_TYPE_ICON;
+            return viewType == VIEW_TYPE_ICON || viewType == VIEW_TYPE_FOLDER;
         }
 
         /**
@@ -260,6 +272,17 @@ public abstract class BaseAllAppsAdapter
                         R.layout.private_space_header, parent, false));
             case VIEW_TYPE_BOTTOM_VIEW_TO_SCROLL_TO:
                 return new ViewHolder(new View(mActivityContext.asContext()));
+            case VIEW_TYPE_FOLDER: {
+                FrameLayout tile = new FrameLayout(parent.getContext());
+                int tileHeight = 2 * mActivityContext.getDeviceProfile()
+                        .getAllAppsProfile().getCellHeightPx();
+                tile.setLayoutParams(new RecyclerView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, tileHeight));
+                int tilePad = Math.round(
+                        10 * parent.getResources().getDisplayMetrics().density);
+                tile.setPadding(tilePad, tilePad, tilePad, tilePad);
+                return new ViewHolder(tile);
+            }
             default:
                 if (mAdapterProvider.isViewSupported(viewType)) {
                     return mAdapterProvider.onCreateViewHolder(mLayoutInflater, parent, viewType);
@@ -349,6 +372,21 @@ public abstract class BaseAllAppsAdapter
             case VIEW_TYPE_WORK_EDU_CARD:
                 ((WorkEduCard) holder.itemView).setPosition(position);
                 break;
+            case VIEW_TYPE_FOLDER: {
+                FolderInfo folderInfo = mApps.getAdapterItems().get(position).folderInfo;
+                ViewGroup container = (ViewGroup) holder.itemView;
+                container.removeAllViews();
+                if (folderInfo != null) {
+                    FolderIcon folderIcon = FolderIcon.inflateFolderAndIcon(
+                            R.layout.all_apps_big_folder_icon,
+                            ActivityContext.lookupContext(container.getContext()),
+                            container, folderInfo);
+                    container.addView(folderIcon, new FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT));
+                }
+                break;
+            }
             default:
                 if (mAdapterProvider.isViewSupported(holder.getItemViewType())) {
                     mAdapterProvider.onBindView(holder, position);

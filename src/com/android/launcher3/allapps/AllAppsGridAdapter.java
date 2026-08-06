@@ -212,6 +212,9 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
                 return totalSpans;
             }
             int viewType = items.get(position).viewType;
+            if (viewType == VIEW_TYPE_FOLDER) {
+                return Math.min(totalSpans, 2 * (totalSpans / mAppsPerRow));
+            }
             if (isIconViewType(viewType)) {
                 return totalSpans / mAppsPerRow;
             } else {

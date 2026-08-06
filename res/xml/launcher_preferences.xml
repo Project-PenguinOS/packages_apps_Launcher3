@@ -43,4 +43,11 @@
         android:summary="@string/nos_themed_icons_summary"
         android:persistent="false" />
 
+    <SwitchPreference
+        android:key="pref_drawer_caddy"
+        android:title="@string/drawer_caddy_title"
+        android:summary="@string/drawer_caddy_summary"
+        android:defaultValue="false"
+        android:persistent="true" />
+
 </androidx.preference.PreferenceScreen>

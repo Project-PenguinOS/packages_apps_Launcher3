@@ -88,6 +88,7 @@ import com.android.launcher3.popup.PoppableType;
 import com.android.launcher3.touch.CustomActionsListener;
 import com.android.launcher3.touch.CustomEventsTouchHandler;
 import com.android.launcher3.touch.CustomTouchDelegate;
+import com.android.launcher3.touch.ItemClickHandler;
 import com.android.launcher3.touch.WorkspaceItemCustomActionsListener;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiTranslateDelegate;
@@ -98,6 +99,7 @@ import com.android.launcher3.views.FloatingIconViewCompanion;
 import com.android.launcher3.widget.PendingAddShortcutInfo;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -133,8 +135,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     FolderGridOrganizer mPreviewVerifier;
     final ClippedFolderIconLayoutRule mPreviewLayoutRule;
     private final PreviewItemManager mPreviewItemManager;
+    private final LargeFolderPreview mLargeFolderPreview;
     private PreviewItemDrawingParams mTmpParams = new PreviewItemDrawingParams(0, 0, 0);
     private final List<ItemInfo> mCurrentPreviewItems = new ArrayList<>();
+
+    @Nullable private WorkspaceItemInfo mPendingLaunchTarget;
 
     boolean mAnimating = false;
 
@@ -186,6 +191,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }, this::shouldIgnoreTouchDown);
         mPreviewLayoutRule = new ClippedFolderIconLayoutRule();
         mPreviewItemManager = new PreviewItemManager(this);
+        mLargeFolderPreview = new LargeFolderPreview(this);
         mDotParams = new DotRenderer.DrawParams();
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
         mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context).getIconState().getIconShapeInfo();
@@ -263,6 +269,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     public void getPreviewBounds(Rect outBounds) {
+        if (isBigFolder()) {
+            mLargeFolderPreview.getPreviewRect(outBounds);
+            return;
+        }
         mPreviewItemManager.recomputePreviewDrawingParams();
         mBackground.getBounds(outBounds);
         // The preview items go outside of the bounds of the background.
@@ -295,6 +305,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         CellLayout cl = (CellLayout) getParent().getParent();
 
         mBackground.animateToAccept(cl, lp.getCellX(), lp.getCellY());
+        if (isBigFolder() && mLargeFolderPreview.setAccepting(true)) {
+            invalidate();
+        }
         mOpenAlarm.setOnAlarmListener(mOnOpenListener);
         if (SPRING_LOADING_ENABLED &&
                 ((dragInfo instanceof WorkspaceItemFactory)
@@ -337,6 +350,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     public void onDragExit() {
         mBackground.animateToRest();
+        if (mLargeFolderPreview.setAccepting(false)) {
+            invalidate();
+        }
         mOpenAlarm.cancelAlarm();
     }
 
@@ -618,6 +634,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
         if (!mBackgroundIsVisible) return;
 
+        if (isBigFolder()) {
+            mLargeFolderPreview.draw(canvas);
+            return;
+        }
+
         mPreviewItemManager.recomputePreviewDrawingParams();
 
         if (!mBackground.drawingDelegated()) {
@@ -656,6 +677,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (isBigFolder()) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            positionBigFolderLabel();
+            return;
+        }
         boolean shouldCenterIcon = mActivity.getDeviceProfile().getWorkspaceProfile()
                 .getIconCenterVertically();
         if (shouldCenterIcon) {
@@ -667,6 +693,15 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                     - cellHeightPx) / 2, getPaddingRight(), getPaddingBottom());
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    private void positionBigFolderLabel() {
+        int previewBottom = mLargeFolderPreview.updateGeometry(
+                getMeasuredWidth(), getMeasuredHeight(), getPaddingTop(),
+                getBigFolderLabelHeight());
+        int gap = Math.round(4 * getResources().getDisplayMetrics().density);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mFolderName.getLayoutParams();
+        lp.topMargin = previewBottom + gap;
     }
 
     /** Sets the visibility of the icon's title text */
@@ -701,6 +736,35 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         mPreviewItemManager.updatePreviewItems(animate);
         mCurrentPreviewItems.clear();
         mCurrentPreviewItems.addAll(getPreviewItemsOnPage(0));
+        if (mInfo != null
+                && (mInfo.isBigFolder() || mInfo.qualifiesAsBigFolder() || mInfo.forceBigPreview)) {
+            mLargeFolderPreview.onItemsChanged(getOrderedContents());
+        }
+    }
+
+    public boolean isBigFolder() {
+        if (mInfo == null) {
+            return false;
+        }
+        if (mInfo.forceBigPreview) {
+            return true;
+        }
+        return mInfo.container == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                && (mInfo.isBigFolder() || mInfo.qualifiesAsBigFolder());
+    }
+
+    private List<ItemInfo> getOrderedContents() {
+        List<ItemInfo> ordered = new ArrayList<>(mInfo.getContents());
+        ordered.sort(Comparator.comparingInt(item -> item.rank));
+        return ordered;
+    }
+
+    int getBigFolderLabelHeight() {
+        if (mFolderName == null || mFolderName.getVisibility() == GONE) {
+            return 0;
+        }
+        int measured = mFolderName.getMeasuredHeight();
+        return measured > 0 ? measured : Math.round(mFolderName.getTextSize() * 1.4f);
     }
 
     /**
@@ -715,8 +779,71 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         updateDotInfo();
         setContentDescription(getAccessiblityTitle(mInfo.title));
         updatePreviewItems(animate);
+        post(this::updateBigFolderFootprint);
         invalidate();
         requestLayout();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        post(this::updateBigFolderFootprint);
+    }
+
+    private void updateBigFolderFootprint() {
+        if (mInfo == null || mInfo.container != LauncherSettings.Favorites.CONTAINER_DESKTOP) {
+            return;
+        }
+        if (getParent() == null
+                || !(getParent().getParent() instanceof CellLayout cellLayout)
+                || !(getLayoutParams() instanceof CellLayoutLayoutParams lp)) {
+            return;
+        }
+        final int span = FolderInfo.BIG_FOLDER_SPAN;
+        boolean wantBig = mInfo.qualifiesAsBigFolder();
+        boolean isBig = lp.cellHSpan >= span && lp.cellVSpan >= span;
+        android.util.Log.d("BigFolder", "footprint '" + mInfo.title + "' contents="
+                + mInfo.getContents().size() + " wantBig=" + wantBig + " isBig=" + isBig
+                + " lp=" + lp.cellHSpan + "x" + lp.cellVSpan
+                + " cell=" + lp.getCellX() + "," + lp.getCellY());
+        if (isBig || !wantBig) {
+            mInfo.spanX = lp.cellHSpan;
+            mInfo.spanY = lp.cellVSpan;
+            return;
+        }
+        if (cellLayout.getCountX() < span || cellLayout.getCountY() < span) {
+            return;
+        }
+        cellLayout.markCellsAsUnoccupiedForView(this);
+        int cellX = Math.max(0, Math.min(lp.getCellX(), cellLayout.getCountX() - span));
+        int cellY = Math.max(0, Math.min(lp.getCellY(), cellLayout.getCountY() - span));
+        if (!cellLayout.isRegionVacant(cellX, cellY, span, span)) {
+            int[] vacant = new int[2];
+            if (cellLayout.findCellForSpan(vacant, span, span)) {
+                cellX = vacant[0];
+                cellY = vacant[1];
+            } else {
+                cellLayout.markCellsAsOccupiedForView(this);
+                android.util.Log.d("BigFolder", "no free 2x2 for '" + mInfo.title + "', staying 1x1");
+                return;
+            }
+        }
+        applyFootprint(lp, cellX, cellY, span);
+        cellLayout.markCellsAsOccupiedForView(this);
+        mActivity.getModelWriter().updateItemInDatabase(mInfo);
+        requestLayout();
+        invalidate();
+    }
+
+    private void applyFootprint(CellLayoutLayoutParams lp, int cellX, int cellY, int span) {
+        lp.setCellX(cellX);
+        lp.setCellY(cellY);
+        lp.cellHSpan = span;
+        lp.cellVSpan = span;
+        mInfo.cellX = cellX;
+        mInfo.cellY = cellY;
+        mInfo.spanX = span;
+        mInfo.spanY = span;
     }
 
     public void onTitleChanged(CharSequence title) {
@@ -726,7 +853,29 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            mPendingLaunchTarget = isBigFolder()
+                    ? mLargeFolderPreview.getLaunchTargetForPoint(event.getX(), event.getY())
+                    : null;
+        } else if (action == MotionEvent.ACTION_CANCEL) {
+            mPendingLaunchTarget = null;
+        }
         return onDelegateTouchEvent(event);
+    }
+
+    @Override
+    public boolean performClick() {
+        WorkspaceItemInfo target = mPendingLaunchTarget;
+        mPendingLaunchTarget = null;
+        if (target != null && isBigFolder() && mActivity instanceof Launcher launcher) {
+            ItemClickHandler.onClickAppShortcut(null, target, launcher);
+            return true;
+        }
+        if (mInfo != null && mInfo.forceBigPreview) {
+            return true;
+        }
+        return super.performClick();
     }
 
     /**
@@ -761,6 +910,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     public void onFolderClose(int currentPage) {
+        if (isBigFolder()) {
+            return;
+        }
         mPreviewItemManager.onFolderClose(currentPage);
     }
 

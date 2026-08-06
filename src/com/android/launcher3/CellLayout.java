@@ -948,8 +948,15 @@ public class CellLayout extends ViewGroup {
         DeviceProfile grid = mActivity.getDeviceProfile();
         float iconVisibleRadius = ICON_VISIBLE_AREA_FACTOR
                 * grid.getWorkspaceProfile().getIconSizePx() / 2;
+        int spanX = 1;
+        int spanY = 1;
+        View child = mShortcutsAndWidgets.getChildAt(targetCell[0], targetCell[1]);
+        if (child != null && child.getLayoutParams() instanceof CellLayoutLayoutParams lp) {
+            spanX = Math.max(1, lp.cellHSpan);
+            spanY = Math.max(1, lp.cellVSpan);
+        }
         // Halfway between reorder radius and icon.
-        return (getReorderRadius(targetCell, 1, 1) + iconVisibleRadius) / 2;
+        return (getReorderRadius(targetCell, spanX, spanY) + iconVisibleRadius) / 2;
     }
 
     /**

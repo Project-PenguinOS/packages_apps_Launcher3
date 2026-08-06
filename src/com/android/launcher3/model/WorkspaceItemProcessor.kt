@@ -491,11 +491,13 @@ class WorkspaceItemProcessor(
         c.applyCommonProperties(collection)
         // Do not trim the folder label, as is was set by the user.
         collection.title = c.title
-        collection.spanX = 1
-        collection.spanY = 1
         if (collection is FolderInfo) {
+            collection.spanX = c.spanX.coerceIn(1, (idp.numColumns - collection.cellX).coerceAtLeast(1))
+            collection.spanY = c.spanY.coerceIn(1, (idp.numRows - collection.cellY).coerceAtLeast(1))
             collection.options = c.options
         } else {
+            collection.spanX = 1
+            collection.spanY = 1
             // An app pair may be inside another folder, so it needs to preserve rank information.
             collection.rank = c.rank
         }
@@ -708,6 +710,7 @@ class WorkspaceItemProcessor(
 
             itemInfo.getContents().sortWith(Folder.ITEM_POS_COMPARATOR)
             verifiers.forEach { it.setFolderInfo(itemInfo) }
+            c.applyBigFolderFootprint(itemInfo)
 
             // Update ranks here to ensure there are no gaps caused by removed folder items.
             // Ranks are the source of truth for folder items, so cellX and cellY can be

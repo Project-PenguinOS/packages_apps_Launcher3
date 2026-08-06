@@ -299,8 +299,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
         mBackground = (GradientDrawable) Objects.requireNonNull(
                 ResourcesCompat.getDrawable(getResources(),
-                        R.drawable.round_rect_folder, getContext().getTheme()));
+                        R.drawable.round_rect_folder, getContext().getTheme())).mutate();
         mBackground.setCallback(this);
+        mBackground.setAlpha(0xCC);
         mBoxSelectionHelper = enableWorkspaceSelection()
                 ? new BoxSelectionHelper(mActivityContext, this)
                 : null;

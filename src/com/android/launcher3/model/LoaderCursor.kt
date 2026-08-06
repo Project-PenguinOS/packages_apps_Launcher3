@@ -411,9 +411,65 @@ constructor(
                 findOrMakeFolder(info.container, loadedItems).add(info)
             }
             restoreEventLogger?.logSingleFavoritesItemRestored(info.itemType)
+        } else if (info is FolderInfo && (info.spanX > 1 || info.spanY > 1)) {
+            info.spanX = 1
+            info.spanY = 1
+            checkAndAddItem(info, loadedItems, logger)
         } else if (info.id != ItemInfo.NO_ID) {
             markDeleted("Item position overlap", RestoreError.OVERLAPPING_ITEM)
         }
+    }
+
+    fun applyBigFolderFootprint(folder: FolderInfo) {
+        if (folder.container != CONTAINER_DESKTOP) return
+        val span = FolderInfo.BIG_FOLDER_SPAN
+        val countX = idp.numColumns
+        val countY = idp.numRows
+        if (countX < span || countY < span) return
+        val occupancy = occupied[folder.screenId]
+        val wantBig = folder.getContents().size >= FolderInfo.BIG_FOLDER_MIN_ITEMS
+        val isBig = folder.spanX >= span && folder.spanY >= span
+        Log.d(
+            "BigFolder",
+            "loader '${folder.title}' screen=${folder.screenId} contents=${folder.getContents().size}" +
+                " wantBig=$wantBig isBig=$isBig span=${folder.spanX}x${folder.spanY}" +
+                " cell=${folder.cellX},${folder.cellY} occNull=${occupancy == null}",
+        )
+        if (occupancy == null) return
+        if (wantBig == isBig) return
+
+        occupancy.markCells(folder, false)
+        if (wantBig) {
+            var cellX = folder.cellX.coerceIn(0, countX - span)
+            var cellY = folder.cellY.coerceIn(0, countY - span)
+            if (!occupancy.isRegionVacant(cellX, cellY, span, span)) {
+                var found = false
+                outer@ for (y in 0..(countY - span)) {
+                    for (x in 0..(countX - span)) {
+                        if (occupancy.isRegionVacant(x, y, span, span)) {
+                            cellX = x
+                            cellY = y
+                            found = true
+                            break@outer
+                        }
+                    }
+                }
+                if (!found) {
+                    occupancy.markCells(folder, true)
+                    Log.d("BigFolder", "loader '${folder.title}' NO free 2x2 on screen, staying 1x1")
+                    return
+                }
+            }
+            folder.cellX = cellX
+            folder.cellY = cellY
+            folder.spanX = span
+            folder.spanY = span
+        } else {
+            folder.spanX = 1
+            folder.spanY = 1
+        }
+        occupancy.markCells(folder, true)
+        Log.d("BigFolder", "loader '${folder.title}' -> ${folder.spanX}x${folder.spanY} at ${folder.cellX},${folder.cellY}")
     }
 
     /** check & update map of what's occupied; used to discard overlapping/invalid items */
