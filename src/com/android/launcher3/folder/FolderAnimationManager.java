@@ -142,18 +142,32 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         ClippedFolderIconLayoutRule rule = mFolderIcon.getLayoutRule();
         final List<View> itemsInPreview = getPreviewIconsOnPage(0);
 
+        // A big (2x2) folder animates from/to its large preview panel, not the small circular
+        // preview, and skips the small preview-item fly -- that mismatch was the "small folder"
+        // flash on open/close. Normal folders keep the exact existing path below.
+        final boolean bigFolder = mFolderIcon.isBigFolder();
+        final Rect bigPreviewRect = new Rect();
+        if (bigFolder) {
+            mFolderIcon.getPreviewBounds(bigPreviewRect);
+        }
+
         // Match position of the FolderIcon
         final Rect folderIconPos = new Rect();
         float scaleRelativeToDragLayer = mFolder.mActivityContext.getDragLayer()
                 .getDescendantRectRelativeToSelf(mFolderIcon, folderIconPos);
         int scaledRadius = mPreviewBackground.getScaledRadius();
-        float initialSize = (scaledRadius * 2) * scaleRelativeToDragLayer;
+        float initialSize = bigFolder
+                ? bigPreviewRect.width() * scaleRelativeToDragLayer
+                : (scaledRadius * 2) * scaleRelativeToDragLayer;
 
         // Match size/scale of icons in the preview
         float previewScale = rule.scaleForItem(itemsInPreview.size(), 0);
         float previewSize = rule.getIconSize() * previewScale;
         float baseIconSize = getBubbleTextView(itemsInPreview.get(0)).getIconSize();
-        float initialScale = previewSize / baseIconSize * scaleRelativeToDragLayer;
+        float initialScale = bigFolder
+                ? (lp.width > 0 ? bigPreviewRect.width() / (float) lp.width * scaleRelativeToDragLayer
+                        : 1f)
+                : previewSize / baseIconSize * scaleRelativeToDragLayer;
         final float finalScale = 1f;
         float scale = mIsOpening ? initialScale : finalScale;
         mFolder.setPivotX(0);
@@ -177,11 +191,14 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         final int paddingOffsetX = (int) (mContent.getPaddingLeft() * initialScale);
         final int paddingOffsetY = (int) (mContent.getPaddingTop() * initialScale);
 
+        // Big folders anchor to their large preview panel; normal folders to the small preview.
+        float previewOffsetX = bigFolder ? bigPreviewRect.left : mPreviewBackground.getOffsetX();
+        float previewOffsetY = bigFolder ? bigPreviewRect.top : mPreviewBackground.getOffsetY();
         int initialX = folderIconPos.left + mFolder.getPaddingLeft()
-                + Math.round(mPreviewBackground.getOffsetX() * scaleRelativeToDragLayer)
+                + Math.round(previewOffsetX * scaleRelativeToDragLayer)
                 - paddingOffsetX - previewItemOffsetX;
         int initialY = folderIconPos.top + mFolder.getPaddingTop()
-                + Math.round(mPreviewBackground.getOffsetY() * scaleRelativeToDragLayer)
+                + Math.round(previewOffsetY * scaleRelativeToDragLayer)
                 - paddingOffsetY;
         final float xDistance = initialX - lp.x;
         final float yDistance = initialY - lp.y;
@@ -353,11 +370,14 @@ public class FolderAnimationManager implements FolderAnimationCreator {
             );
         }
 
-        int radiusDiff = scaledRadius - mPreviewBackground.getRadius();
-        addPreviewItemAnimators(a, initialScale / scaleRelativeToDragLayer,
-                // Background can have a scaled radius in drag and drop mode, so we need to add the
-                // difference to keep the preview items centered.
-                (int) (previewItemOffsetX / scaleRelativeToDragLayer) + radiusDiff, radiusDiff);
+        if (!bigFolder) {
+            // Big folders don't draw the small clipped preview items, so don't fly them in/out.
+            int radiusDiff = scaledRadius - mPreviewBackground.getRadius();
+            addPreviewItemAnimators(a, initialScale / scaleRelativeToDragLayer,
+                    // Background can have a scaled radius in drag and drop mode, so we need to add
+                    // the difference to keep the preview items centered.
+                    (int) (previewItemOffsetX / scaleRelativeToDragLayer) + radiusDiff, radiusDiff);
+        }
         return a;
     }
 

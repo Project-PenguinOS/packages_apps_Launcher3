@@ -555,6 +555,9 @@ android_app {
         "launcher.quickstep.protolog.pb",
     ],
 
+    // Flowerpot rule files for the app-drawer "Caddy" auto-categorization.
+    asset_dirs: ["assets"],
+
     resource_dirs: ["quickstep/res"],
 
     additional_manifests: [

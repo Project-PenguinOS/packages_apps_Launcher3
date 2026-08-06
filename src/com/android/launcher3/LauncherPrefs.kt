@@ -261,6 +261,10 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
                 DefaultsValueProvider.get(context).enableTwoLineToggle
             }
 
+        // Caddy: auto-categorize the app drawer into big iOS-style category folders. Off by default.
+        @JvmField
+        val DRAWER_CADDY = backedUpItem("pref_drawer_caddy", false)
+
         @JvmField
         val PROMISE_ICON_IDS = nonRestorableItem(InstallSessionHelper.PROMISE_ICON_IDS, "")
         @JvmField val WORK_EDU_STEP = backedUpItem("showed_work_profile_edu", 0)

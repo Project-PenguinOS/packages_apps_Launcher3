@@ -88,6 +88,7 @@ import com.android.launcher3.popup.PoppableType;
 import com.android.launcher3.touch.CustomActionsListener;
 import com.android.launcher3.touch.CustomEventsTouchHandler;
 import com.android.launcher3.touch.CustomTouchDelegate;
+import com.android.launcher3.touch.ItemClickHandler;
 import com.android.launcher3.touch.WorkspaceItemCustomActionsListener;
 import com.android.launcher3.util.MultiPropertyFactory;
 import com.android.launcher3.util.MultiTranslateDelegate;
@@ -98,6 +99,7 @@ import com.android.launcher3.views.FloatingIconViewCompanion;
 import com.android.launcher3.widget.PendingAddShortcutInfo;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -133,8 +135,15 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     FolderGridOrganizer mPreviewVerifier;
     final ClippedFolderIconLayoutRule mPreviewLayoutRule;
     private final PreviewItemManager mPreviewItemManager;
+    // Renders the "big" (2x2) folder preview and owns its per-quadrant tap hit-testing. Only used
+    // while mInfo.isBigFolder() is true; normal folders keep using mPreviewItemManager.
+    private final LargeFolderPreview mLargeFolderPreview;
     private PreviewItemDrawingParams mTmpParams = new PreviewItemDrawingParams(0, 0, 0);
     private final List<ItemInfo> mCurrentPreviewItems = new ArrayList<>();
+
+    // App picked out by an ACTION_DOWN on a big folder's large icon quadrant; if non-null when the
+    // click fires, that app is launched directly instead of opening the folder.
+    @Nullable private WorkspaceItemInfo mPendingLaunchTarget;
 
     boolean mAnimating = false;
 
@@ -186,6 +195,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         }, this::shouldIgnoreTouchDown);
         mPreviewLayoutRule = new ClippedFolderIconLayoutRule();
         mPreviewItemManager = new PreviewItemManager(this);
+        mLargeFolderPreview = new LargeFolderPreview(this);
         mDotParams = new DotRenderer.DrawParams();
         mDotParams.setDotColor(Themes.getAttrColor(context, R.attr.notificationDotColor));
         mDotParams.shapeInfo = ThemeManager.INSTANCE.get(context).getIconState().getIconShapeInfo();
@@ -263,6 +273,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     public void getPreviewBounds(Rect outBounds) {
+        if (isBigFolder()) {
+            // Big folders occupy the whole 2x2 preview panel, not the small circular preview; using
+            // its bounds keeps drag/animation geometry (and the open/close shrink) on the big area.
+            mLargeFolderPreview.getPreviewRect(outBounds);
+            return;
+        }
         mPreviewItemManager.recomputePreviewDrawingParams();
         mBackground.getBounds(outBounds);
         // The preview items go outside of the bounds of the background.
@@ -295,6 +311,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         CellLayout cl = (CellLayout) getParent().getParent();
 
         mBackground.animateToAccept(cl, lp.getCellX(), lp.getCellY());
+        // Big folders don't draw mBackground, so light up the big panel instead for clear feedback.
+        if (isBigFolder() && mLargeFolderPreview.setAccepting(true)) {
+            invalidate();
+        }
         mOpenAlarm.setOnAlarmListener(mOnOpenListener);
         if (SPRING_LOADING_ENABLED &&
                 ((dragInfo instanceof WorkspaceItemFactory)
@@ -337,6 +357,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     public void onDragExit() {
         mBackground.animateToRest();
+        if (mLargeFolderPreview.setAccepting(false)) {
+            invalidate();
+        }
         mOpenAlarm.cancelAlarm();
     }
 
@@ -618,6 +641,13 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
         if (!mBackgroundIsVisible) return;
 
+        if (isBigFolder()) {
+            // Big folders draw 3 large launchable icons + a mini-cluster instead of the small
+            // clipped 2x2 preview. (Notification dot is intentionally omitted here for now.)
+            mLargeFolderPreview.draw(canvas);
+            return;
+        }
+
         mPreviewItemManager.recomputePreviewDrawingParams();
 
         if (!mBackground.drawingDelegated()) {
@@ -656,6 +686,13 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        if (isBigFolder()) {
+            // Big folders fill the 2x2 cell; skip the 1x1 vertical-centering and place the label
+            // just below the enlarged preview instead.
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            positionBigFolderLabel();
+            return;
+        }
         boolean shouldCenterIcon = mActivity.getDeviceProfile().getWorkspaceProfile()
                 .getIconCenterVertically();
         if (shouldCenterIcon) {
@@ -667,6 +704,19 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                     - cellHeightPx) / 2, getPaddingRight(), getPaddingBottom());
         }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    /**
+     * Places the folder label just below the enlarged preview of a big folder. Only adjusts the
+     * child's top margin in place (no requestLayout), so it is safe to call from onMeasure.
+     */
+    private void positionBigFolderLabel() {
+        int previewBottom = mLargeFolderPreview.updateGeometry(
+                getMeasuredWidth(), getMeasuredHeight(), getPaddingTop(),
+                getBigFolderLabelHeight());
+        int gap = Math.round(4 * getResources().getDisplayMetrics().density);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mFolderName.getLayoutParams();
+        lp.topMargin = previewBottom + gap;
     }
 
     /** Sets the visibility of the icon's title text */
@@ -701,6 +751,49 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         mPreviewItemManager.updatePreviewItems(animate);
         mCurrentPreviewItems.clear();
         mCurrentPreviewItems.addAll(getPreviewItemsOnPage(0));
+        // Only maintain the big-preview drawables for folders that are (or are about to become)
+        // big, so normal small folders don't build extra icons.
+        if (mInfo != null
+                && (mInfo.isBigFolder() || mInfo.qualifiesAsBigFolder() || mInfo.forceBigPreview)) {
+            mLargeFolderPreview.onItemsChanged(getOrderedContents());
+        }
+    }
+
+    /**
+     * Whether this folder should be rendered as a big (2x2) folder. This is content-based (a
+     * workspace folder with enough apps) rather than span-based on purpose: a transient span or
+     * footprint change while the folder opens/closes must not flip the icon back to the small 2x2
+     * preview for a frame -- that was the "small folder flash" on close. The physical 2x2 footprint
+     * is managed separately (the loader's applyBigFolderFootprint + {@link
+     * #updateBigFolderFootprint()}).
+     */
+    public boolean isBigFolder() {
+        if (mInfo == null) {
+            return false;
+        }
+        // Caddy drawer folders always use the big tile (see FolderInfo#forceBigPreview).
+        if (mInfo.forceBigPreview) {
+            return true;
+        }
+        return mInfo.container == LauncherSettings.Favorites.CONTAINER_DESKTOP
+                && (mInfo.isBigFolder() || mInfo.qualifiesAsBigFolder());
+    }
+
+    /** Folder contents in rank order, used to pick the big folder's large icons vs. cluster. */
+    private List<ItemInfo> getOrderedContents() {
+        List<ItemInfo> ordered = new ArrayList<>(mInfo.getContents());
+        ordered.sort(Comparator.comparingInt(item -> item.rank));
+        return ordered;
+    }
+
+    /** Height reserved for the folder label below a big folder's preview (0 if hidden). */
+    int getBigFolderLabelHeight() {
+        if (mFolderName == null || mFolderName.getVisibility() == GONE) {
+            return 0;
+        }
+        int measured = mFolderName.getMeasuredHeight();
+        // Before the first measure pass, fall back to an estimate from the text size.
+        return measured > 0 ? measured : Math.round(mFolderName.getTextSize() * 1.4f);
     }
 
     /**
@@ -715,8 +808,93 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         updateDotInfo();
         setContentDescription(getAccessiblityTitle(mInfo.title));
         updatePreviewItems(animate);
+        // Grow/shrink the footprint when a folder crosses the big-folder threshold (e.g. the user
+        // drags a 4th app in). Posted so it runs after the change/drag settles.
+        post(this::updateBigFolderFootprint);
         invalidate();
         requestLayout();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        // Size the footprint once the folder is bound and the grid has settled. Posted so it runs
+        // after the current bind pass rather than mutating occupancy mid-bind.
+        post(this::updateBigFolderFootprint);
+    }
+
+    /**
+     * Sizes this workspace folder to a 2x2 footprint when it qualifies as a big folder, or back to
+     * 1x1 otherwise. When growing it keeps its position if the 2x2 block is free, else relocates to
+     * the nearest free 2x2 on the same screen -- so it never overlaps neighbours or straddles a
+     * page. The new footprint/position are persisted so it stays big after a reload.
+     *
+     * <p>The layout params' span (not the model's) is treated as the source of truth for "currently
+     * big", so this self-corrects even if the loaded span didn't reach the view.
+     */
+    private void updateBigFolderFootprint() {
+        if (mInfo == null || mInfo.container != LauncherSettings.Favorites.CONTAINER_DESKTOP) {
+            // Only workspace folders are enlarged (not the hotseat, all-apps, or taskbar).
+            return;
+        }
+        if (getParent() == null
+                || !(getParent().getParent() instanceof CellLayout cellLayout)
+                || !(getLayoutParams() instanceof CellLayoutLayoutParams lp)) {
+            return;
+        }
+        final int span = FolderInfo.BIG_FOLDER_SPAN;
+        boolean wantBig = mInfo.qualifiesAsBigFolder();
+        boolean isBig = lp.cellHSpan >= span && lp.cellVSpan >= span;
+        android.util.Log.d("BigFolder", "footprint '" + mInfo.title + "' contents="
+                + mInfo.getContents().size() + " wantBig=" + wantBig + " isBig=" + isBig
+                + " lp=" + lp.cellHSpan + "x" + lp.cellVSpan
+                + " cell=" + lp.getCellX() + "," + lp.getCellY());
+        // GROW-ONLY: never shrink a folder here. Shrinking + persisting spanX=1 on a transient/racy
+        // post-bind signal is what made big folders come back small after a reboot (and it can free
+        // cells that then block the loader from re-growing). The loader
+        // (LoaderCursor.applyBigFolderFootprint) is the authoritative sizer at load; this path only
+        // grows a folder live when its 4th app is dropped in.
+        if (isBig || !wantBig) {
+            // Keep the model's span consistent with the actual layout.
+            mInfo.spanX = lp.cellHSpan;
+            mInfo.spanY = lp.cellVSpan;
+            return;
+        }
+        if (cellLayout.getCountX() < span || cellLayout.getCountY() < span) {
+            return; // grid too small to ever hold a 2x2 folder
+        }
+        cellLayout.markCellsAsUnoccupiedForView(this);
+        // Prefer our current spot (clamped in-grid); otherwise the nearest free 2x2.
+        int cellX = Math.max(0, Math.min(lp.getCellX(), cellLayout.getCountX() - span));
+        int cellY = Math.max(0, Math.min(lp.getCellY(), cellLayout.getCountY() - span));
+        if (!cellLayout.isRegionVacant(cellX, cellY, span, span)) {
+            int[] vacant = new int[2];
+            if (cellLayout.findCellForSpan(vacant, span, span)) {
+                cellX = vacant[0];
+                cellY = vacant[1];
+            } else {
+                // No room on this screen for a 2x2; stay a normal 1x1 folder.
+                cellLayout.markCellsAsOccupiedForView(this);
+                android.util.Log.d("BigFolder", "no free 2x2 for '" + mInfo.title + "', staying 1x1");
+                return;
+            }
+        }
+        applyFootprint(lp, cellX, cellY, span);
+        cellLayout.markCellsAsOccupiedForView(this);
+        mActivity.getModelWriter().updateItemInDatabase(mInfo);
+        requestLayout();
+        invalidate();
+    }
+
+    private void applyFootprint(CellLayoutLayoutParams lp, int cellX, int cellY, int span) {
+        lp.setCellX(cellX);
+        lp.setCellY(cellY);
+        lp.cellHSpan = span;
+        lp.cellVSpan = span;
+        mInfo.cellX = cellX;
+        mInfo.cellY = cellY;
+        mInfo.spanX = span;
+        mInfo.spanY = span;
     }
 
     public void onTitleChanged(CharSequence title) {
@@ -726,7 +904,40 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) {
+            // Remember whether the press landed on one of the big folder's large icons, so the
+            // click (fired on ACTION_UP) can launch that app instead of opening the folder.
+            mPendingLaunchTarget = isBigFolder()
+                    ? mLargeFolderPreview.getLaunchTargetForPoint(event.getX(), event.getY())
+                    : null;
+        } else if (action == MotionEvent.ACTION_CANCEL) {
+            mPendingLaunchTarget = null;
+        }
         return onDelegateTouchEvent(event);
+    }
+
+    @Override
+    public boolean performClick() {
+        WorkspaceItemInfo target = mPendingLaunchTarget;
+        mPendingLaunchTarget = null;
+        // A tap on a big folder's large icon launches that app directly. Everything else (the
+        // mini-cluster quadrant, the label, or a non-touch/accessibility click) opens the folder.
+        // Pass a null source view so the launch/return uses the default window transition instead of
+        // a FloatingIconView, which for a FolderIcon renders the small folder preview -- that was the
+        // "small folder" flashing when an app opened from / closed back to the big folder.
+        if (target != null && isBigFolder() && mActivity instanceof Launcher launcher) {
+            ItemClickHandler.onClickAppShortcut(null, target, launcher);
+            return true;
+        }
+        // Caddy drawer folders: opening the workspace-style Folder from the app drawer animates
+        // against the home screen (dumping the user to home with a small-folder flash). Until a
+        // proper in-drawer open exists, a tap that isn't on one of the big launch icons is a no-op
+        // for drawer folders.
+        if (mInfo != null && mInfo.forceBigPreview) {
+            return true;
+        }
+        return super.performClick();
     }
 
     /**
@@ -761,6 +972,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     public void onFolderClose(int currentPage) {
+        // Big folders don't use the small clipped preview, so skip its slide-in-first-page
+        // animation on close - it's what caused a small folder to flash before the big one.
+        if (isBigFolder()) {
+            return;
+        }
         mPreviewItemManager.onFolderClose(currentPage);
     }
 

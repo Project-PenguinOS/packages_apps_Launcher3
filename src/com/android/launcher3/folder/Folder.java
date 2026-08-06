@@ -299,8 +299,11 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
 
         mBackground = (GradientDrawable) Objects.requireNonNull(
                 ResourcesCompat.getDrawable(getResources(),
-                        R.drawable.round_rect_folder, getContext().getTheme()));
+                        R.drawable.round_rect_folder, getContext().getTheme())).mutate();
         mBackground.setCallback(this);
+        // Make the expanded folder translucent so the blurred wallpaper shows through -- a glass
+        // panel matching the big folder icon, instead of an opaque (near-black) fill.
+        mBackground.setAlpha(0xCC);
         mBoxSelectionHelper = enableWorkspaceSelection()
                 ? new BoxSelectionHelper(mActivityContext, this)
                 : null;

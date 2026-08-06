@@ -712,4 +712,8 @@
     <string name="nos_themed_icons_title">Nothing OS icons</string>
     <string name="nos_themed_icons_summary">Monochrome, dot-style icons on the home screen</string>
 
+    <!-- App drawer Caddy (auto-categorized folders) toggle -->
+    <string name="drawer_caddy_title">Categorize app drawer</string>
+    <string name="drawer_caddy_summary">Group apps into big category folders in the app drawer (iOS App Library style). Restart the launcher to apply.</string>
+
 </resources>
