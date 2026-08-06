@@ -37,9 +37,11 @@ import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.android.launcher3.Flags;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.model.data.AppInfo;
+import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.util.LabelComparator;
 import com.android.launcher3.views.ActivityContext;
@@ -314,7 +316,9 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
                                     R.string.work_profile_edu_section), 0));
                     Log.d(TAG, "Adding FastScrollSection for work edu card.");
                 }
-                position = addAppsWithSections(mApps, position);
+                position = isCaddyEnabled()
+                        ? addCaddyFolders(mApps, position)
+                        : addAppsWithSections(mApps, position);
             }
             if (Flags.enablePrivateSpace()) {
                 position = addPrivateSpaceItems(position);
@@ -345,14 +349,15 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
                         || BaseAllAppsAdapter.isPrivateSpaceSysAppsDividerView(item.viewType)) {
                     numAppsInSection = 0;
                 } else if (BaseAllAppsAdapter.isIconViewType(item.viewType)) {
+                    int slots = (item.viewType == BaseAllAppsAdapter.VIEW_TYPE_FOLDER) ? 2 : 1;
                     if (numAppsInSection % mNumAppsPerRowAllApps == 0) {
                         numAppsInRow = 0;
                         rowIndex++;
                     }
                     item.rowIndex = rowIndex;
                     item.rowAppIndex = numAppsInRow;
-                    numAppsInSection++;
-                    numAppsInRow++;
+                    numAppsInSection += slots;
+                    numAppsInRow += slots;
                 }
             }
             mNumAppRowsInAdapter = rowIndex + 1;
@@ -450,6 +455,34 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
                 // Move the icon after the header.
                 mAdapterItems.add(headerIndex + 1, movedItem);
             }
+        }
+        return position;
+    }
+
+    private boolean isCaddyEnabled() {
+        return LauncherPrefs.get(mActivityContext.asContext()).get(LauncherPrefs.DRAWER_CADDY);
+    }
+
+    private int addCaddyFolders(List<AppInfo> appList, int startPosition) {
+        int position = startPosition;
+        if (appList == null || appList.isEmpty()) {
+            return position;
+        }
+        Context context = mActivityContext.asContext();
+        Map<String, List<AppInfo>> categorized = CaddyCategorizer.categorize(appList, context);
+        for (Map.Entry<String, List<AppInfo>> entry : categorized.entrySet()) {
+            List<AppInfo> apps = entry.getValue();
+            if (apps == null || apps.isEmpty()) {
+                continue;
+            }
+            FolderInfo folderInfo = new FolderInfo();
+            folderInfo.title = entry.getKey();
+            folderInfo.forceBigPreview = true;
+            for (AppInfo app : apps) {
+                folderInfo.add(app.makeWorkspaceItem(context));
+            }
+            mAdapterItems.add(AdapterItem.asFolder(folderInfo));
+            position++;
         }
         return position;
     }

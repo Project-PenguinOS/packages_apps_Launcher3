@@ -58,6 +58,12 @@ public class FolderInfo extends CollectionInfo {
 
     public static final int FLAG_MANUAL_FOLDER_NAME = 0x00000008;
 
+    public static final int BIG_FOLDER_MIN_ITEMS = 4;
+
+    public static final int BIG_FOLDER_SPAN = 2;
+
+    public static final int BIG_FOLDER_LARGE_ICON_COUNT = 3;
+
     /**
      * Different states of folder label.
      */
@@ -90,6 +96,8 @@ public class FolderInfo extends CollectionInfo {
      * The apps and shortcuts
      */
     private final ArrayList<ItemInfo> contents = new ArrayList<>();
+
+    public boolean forceBigPreview = false;
 
     public FolderInfo() {
         itemType = LauncherSettings.Favorites.ITEM_TYPE_FOLDER;
@@ -156,6 +164,14 @@ public class FolderInfo extends CollectionInfo {
         if (writer != null && oldOptions != options) {
             writer.updateItemInDatabase(this);
         }
+    }
+
+    public boolean isBigFolder() {
+        return spanX >= BIG_FOLDER_SPAN && spanY >= BIG_FOLDER_SPAN;
+    }
+
+    public boolean qualifiesAsBigFolder() {
+        return getContents().size() >= BIG_FOLDER_MIN_ITEMS;
     }
 
     @Override

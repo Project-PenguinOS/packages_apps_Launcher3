@@ -561,6 +561,8 @@ android_app {
         "launcher.quickstep.protolog.pb",
     ],
 
+    asset_dirs: ["assets"],
+
     resource_dirs: ["quickstep/res"],
 
     additional_manifests: [
