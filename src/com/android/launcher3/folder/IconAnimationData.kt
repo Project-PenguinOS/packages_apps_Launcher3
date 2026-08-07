@@ -65,6 +65,7 @@ data class IconAnimationData(
             val organizer = createFolderGridOrganizer(mActivityContext.deviceProfile)
             organizer.setFolderInfo(mInfo)
             val numFolderColumns = organizer.countX
+            val bigFolder = folderIcon.isBigFolder
 
             // We delay the animation of each icon from top left to bottom right
             var iconDelay = if (isOpening) 0 else (numItemsOnPage * ICON_DELAY_INCREMENT)
@@ -83,8 +84,8 @@ data class IconAnimationData(
                 val baseIconSize = getBubbleTextView(currentIcon).iconSize.toFloat()
                 val iconScale = previewIconSize / baseIconSize
 
-                // Scale when folder closed
-                val initialIconScale = iconScale / folderAnimationData.folderScale
+                val initialIconScale =
+                    if (bigFolder) 1f else iconScale / folderAnimationData.folderScale
                 // Scale when folder open
                 val finalIconScale = 1f
                 // Scale to start with in Animation
@@ -115,8 +116,10 @@ data class IconAnimationData(
                     ((mTmpParams.transY + folderAnimationData.folderRadiusDifference - paddingTop) /
                             folderAnimationData.folderScale)
                         .toInt()
-                val xDistance = (iconPositionX - iconLayoutParams.x).toFloat()
-                val yDistance = (iconPositionY - iconLayoutParams.y).toFloat()
+                val xDistance =
+                    if (bigFolder) 0f else (iconPositionX - iconLayoutParams.x).toFloat()
+                val yDistance =
+                    if (bigFolder) 0f else (iconPositionY - iconLayoutParams.y).toFloat()
 
                 iconDataList.add(
                     IconAnimationData(

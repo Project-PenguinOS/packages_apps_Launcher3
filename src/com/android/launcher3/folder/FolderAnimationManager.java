@@ -257,7 +257,9 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         }
         play(a, getAnimator(mFolder.mFooter, ALPHA, 0, 1f), footerStartDelay, footerAlphaDuration);
 
-        ShapeDelegate shapeDelegate = ThemeManager.INSTANCE.get(mContext).getFolderShape();
+        ShapeDelegate shapeDelegate = bigFolder
+                ? new ShapeDelegate.RoundedSquare(0.32f)
+                : ThemeManager.INSTANCE.get(mContext).getFolderShape();
         // Create reveal animator for the folder background
         play(a, shapeDelegate.createRevealAnimator(
                 mFolder, startRect, endRect, finalRadius, !mIsOpening));
