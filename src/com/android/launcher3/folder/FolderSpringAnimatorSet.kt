@@ -42,6 +42,7 @@ import com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN
 import com.android.launcher3.util.MultiPropertyFactory
 import com.android.launcher3.util.MultiPropertyFactory.*
 import com.android.launcher3.util.Themes
+import kotlin.math.max
 
 /** Holder for Animators created from [FolderAnimationSpringBuilderManager] */
 class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
@@ -61,6 +62,9 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         private const val STIFFNESS_LAUNCHER_SCRIM = 380f
         private const val DAMPING_LAUNCHER_SCRIM = 0.98f
         private const val WALLPAPER_ZOOM = 0.125f
+        private const val BIG_FOLDER_TILE_FADE_DELAY = 110
+        private const val BIG_FOLDER_TILE_FADE_DURATION = 290
+        private const val BIG_FOLDER_MIN_CONTENT_SCALE = 0.88f
 
         /**
          * Factory method to take data calculated from [FolderAnimationSpringBuilderManager], and
@@ -169,6 +173,10 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 property = LauncherAnimUtils.VIEW_TRANSLATE_Y,
                 view = folder,
             )
+            val contentStartScale =
+                if (folder.folderIcon.isBigFolder)
+                    max(animationData.initialFolderScale, BIG_FOLDER_MIN_CONTENT_SCALE)
+                else animationData.initialFolderScale
             playSpringAnimation(
                 context = folder.context,
                 animatorSet = animatorSet,
@@ -176,7 +184,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 startDelay = 0,
                 stiffness = STIFFNESS_SHAPE_POSITION,
                 damping = DAMPING_SHAPE_POSITION,
-                startValue = animationData.initialFolderScale,
+                startValue = contentStartScale,
                 endValue = 1f,
                 minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,
                 property = getScaleProperty(),
@@ -261,8 +269,13 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 val folderBackground = folder.background as GradientDrawable
                 // Set up the Folder background.
                 val isOpening = animationData.isOpening
-                val initialColor = Themes.getAttrColor(context, R.attr.folderPreviewColor)
-                val finalColor = Themes.getAttrColor(context, R.attr.folderBackgroundColor)
+                val bigFolder = folderIcon.isBigFolder
+                val initialColor =
+                    if (bigFolder) LargeFolderPreview.getPanelColor(context)
+                    else Themes.getAttrColor(context, R.attr.folderPreviewColor)
+                val finalColor =
+                    if (bigFolder) LargeFolderPreview.getPanelColor(context)
+                    else Themes.getAttrColor(context, R.attr.folderBackgroundColor)
                 folderBackground.mutate()
                 folderBackground.setColor(if (isOpening) initialColor else finalColor)
                 // TODO: convert to spring animation?
@@ -275,6 +288,36 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                         )
                         .apply { duration = animationData.defaultDuration.toLong() }
                 )
+
+                if (bigFolder) {
+                    folder.alpha = if (isOpening) 0f else 1f
+                    folderIcon.setBigPreviewAlpha(if (isOpening) 1f else 0f)
+                    val fadeDelay = if (isOpening) 0L else BIG_FOLDER_TILE_FADE_DELAY.toLong()
+                    animatorSet.play(
+                        ObjectAnimator.ofFloat(
+                                folder,
+                                LauncherAnimUtils.VIEW_ALPHA,
+                                if (isOpening) 0f else 1f,
+                                if (isOpening) 1f else 0f,
+                            )
+                            .apply {
+                                startDelay = fadeDelay
+                                duration = BIG_FOLDER_TILE_FADE_DURATION.toLong()
+                            }
+                    )
+                    animatorSet.play(
+                        ObjectAnimator.ofFloat(
+                                folderIcon,
+                                FolderIcon.BIG_PREVIEW_ALPHA,
+                                if (isOpening) 1f else 0f,
+                                if (isOpening) 0f else 1f,
+                            )
+                            .apply {
+                                startDelay = fadeDelay
+                                duration = BIG_FOLDER_TILE_FADE_DURATION.toLong()
+                            }
+                    )
+                }
 
                 val footerAlphaDuration: Int
                 var footerStartDelay = 0

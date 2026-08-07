@@ -21,6 +21,7 @@ import static android.view.View.ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.getScaleProperty;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN_PREVIEW;
 import static com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer;
+import static com.android.launcher3.folder.FolderIcon.BIG_PREVIEW_ALPHA;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 
 import android.animation.Animator;
@@ -67,6 +68,7 @@ public class FolderAnimationManager implements FolderAnimationCreator {
     private static final float EXTRA_FOLDER_REVEAL_RADIUS_PERCENTAGE = 0.125F;
     private static final int FOLDER_NAME_ALPHA_DURATION = 32;
     private static final int LARGE_FOLDER_FOOTER_DURATION = 128;
+    private static final float BIG_FOLDER_FADE_FRACTION = 0.3f;
 
     private Folder mFolder;
     private FolderPagedView mContent;
@@ -199,9 +201,12 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         final float xDistance = initialX - lp.x;
         final float yDistance = initialY - lp.y;
 
-        // Set up the Folder background.
-        final int initialColor = Themes.getAttrColor(mContext, R.attr.folderPreviewColor);
-        final int finalColor = Themes.getAttrColor(mContext, R.attr.folderBackgroundColor);
+        final int initialColor = bigFolder
+                ? LargeFolderPreview.getPanelColor(mContext)
+                : Themes.getAttrColor(mContext, R.attr.folderPreviewColor);
+        final int finalColor = bigFolder
+                ? LargeFolderPreview.getPanelColor(mContext)
+                : Themes.getAttrColor(mContext, R.attr.folderBackgroundColor);
 
         mFolderBackground.mutate();
         mFolderBackground.setColor(mIsOpening ? initialColor : finalColor);
@@ -348,6 +353,8 @@ public class FolderAnimationManager implements FolderAnimationCreator {
                 mFolder.mFooter.setScaleY(1f);
                 mFolder.mFooter.setTranslationX(0f);
                 mFolder.getFolderName().setAlpha(1f);
+                mFolderIcon.setBigPreviewAlpha(1f);
+                mFolder.setAlpha(1f);
 
                 mFolder.setClipChildren(mFolderClipChildren);
                 mFolder.setClipToPadding(mFolderClipToPadding);
@@ -372,6 +379,13 @@ public class FolderAnimationManager implements FolderAnimationCreator {
             int radiusDiff = scaledRadius - mPreviewBackground.getRadius();
             addPreviewItemAnimators(a, initialScale / scaleRelativeToDragLayer,
                     (int) (previewItemOffsetX / scaleRelativeToDragLayer) + radiusDiff, radiusDiff);
+        } else {
+            mFolder.setAlpha(mIsOpening ? 0f : 1f);
+            mFolderIcon.setBigPreviewAlpha(mIsOpening ? 1f : 0f);
+            int fade = Math.max(1, Math.round(mDuration * BIG_FOLDER_FADE_FRACTION));
+            int fadeDelay = mIsOpening ? 0 : mDuration - fade;
+            play(a, getAnimator(mFolder, ALPHA, 0f, 1f), fadeDelay, fade);
+            play(a, getAnimator(mFolderIcon, BIG_PREVIEW_ALPHA, 1f, 0f), fadeDelay, fade);
         }
         return a;
     }

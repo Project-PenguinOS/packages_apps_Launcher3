@@ -58,6 +58,7 @@ import android.view.ViewOutlineProvider;
 import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.RelativeLayout;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -75,6 +76,7 @@ import com.android.launcher3.DropTarget.DragObject;
 import com.android.launcher3.Flags;
 import com.android.launcher3.Insettable;
 import com.android.launcher3.InsettableFrameLayout;
+import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.Utilities;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
@@ -217,7 +219,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 UserCache.INSTANCE.get(mActivityContext));
         mPrivateSpaceBottomExtraSpace = context.getResources().getDimensionPixelSize(
                 R.dimen.ps_extra_bottom_padding);
-        mAH = Arrays.asList(null, null, null);
+        mAH = Arrays.asList(null, null, null, null);
         mNavBarScrimPaint = new Paint();
         mNavBarScrimPaint.setColor(Themes.getNavBarScrimColor(mActivityContext));
 
@@ -266,6 +268,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 new AlphabeticalAppsList(mActivityContext, mAllAppsStore, mWorkManager, null)));
         mAH.set(SEARCH, new AdapterHolder(SEARCH,
                 new AlphabeticalAppsList(mActivityContext, null, null, null)));
+        mAH.set(AdapterHolder.CATEGORIES, new AdapterHolder(AdapterHolder.CATEGORIES,
+                new AlphabeticalAppsList(mActivityContext, mAllAppsStore, null, null)));
+        mAH.get(AdapterHolder.CATEGORIES).mAppsList.setCaddyEnabled(true);
 
         getLayoutInflater().inflate(R.layout.all_apps_content, this);
         mHeader = findViewById(R.id.all_apps_header);
@@ -540,6 +545,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         } else {
             StringCache cache = mActivityContext.getStringCache();
             if (mUsingTabs) {
+                if (showCategoriesTab()) {
+                    return getContext().getString(isPersonalTab()
+                            ? R.string.all_apps_tab : R.string.all_apps_categories_tab);
+                }
                 if (cache != null) {
                     return isPersonalTab()
                             ? cache.allAppsPersonalTabAccessibility
@@ -574,9 +583,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         if (currentActivePage != SEARCH) {
             mActivityContext.hideKeyboard();
         }
-        if (mAH.get(currentActivePage).mRecyclerView != null) {
-            mAH.get(currentActivePage).mRecyclerView.bindFastScrollbar(mFastScroller,
-                    ALL_APPS_SCROLLER);
+        if (mAH.get(holderTypeForPage(currentActivePage)).mRecyclerView != null) {
+            mAH.get(holderTypeForPage(currentActivePage)).mRecyclerView.bindFastScrollbar(
+                    mFastScroller, ALL_APPS_SCROLLER);
         }
         // Header keeps track of active recycler view to properly render header protection.
         mHeader.setActiveRV(currentActivePage);
@@ -611,51 +620,75 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.MAIN).mRecyclerView);
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.WORK).mRecyclerView);
+        mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.CATEGORIES).mRecyclerView);
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.SEARCH).mRecyclerView);
 
         final AllAppsRecyclerView mainRecyclerView;
-        final AllAppsRecyclerView workRecyclerView;
+        final AllAppsRecyclerView secondRecyclerView;
         if (mUsingTabs) {
             mainRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(0);
-            workRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(1);
+            secondRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(1);
             mAH.get(AdapterHolder.MAIN).setup(mainRecyclerView, mPersonalMatcher);
-            mAH.get(AdapterHolder.WORK).setup(workRecyclerView, mWorkManager.getItemInfoMatcher());
-            workRecyclerView.setId(R.id.apps_list_view_work);
-            if (enableExpandingPauseWorkButton()
-                    || FeatureFlags.ENABLE_EXPANDING_PAUSE_WORK_BUTTON.get()) {
-                mAH.get(AdapterHolder.WORK).mRecyclerView.addOnScrollListener(
-                        mWorkManager.newScrollListener());
+            if (showCategoriesTab()) {
+                mAH.get(AdapterHolder.CATEGORIES).setup(secondRecyclerView, mPersonalMatcher);
+                secondRecyclerView.setId(R.id.apps_list_view_categories);
+                mAH.get(AdapterHolder.WORK).mRecyclerView = null;
+            } else {
+                mAH.get(AdapterHolder.WORK)
+                        .setup(secondRecyclerView, mWorkManager.getItemInfoMatcher());
+                secondRecyclerView.setId(R.id.apps_list_view_work);
+                mAH.get(AdapterHolder.CATEGORIES).mRecyclerView = null;
+                if (enableExpandingPauseWorkButton()
+                        || FeatureFlags.ENABLE_EXPANDING_PAUSE_WORK_BUTTON.get()) {
+                    mAH.get(AdapterHolder.WORK).mRecyclerView.addOnScrollListener(
+                            mWorkManager.newScrollListener());
+                }
             }
             mViewPager.getPageIndicator().setActiveMarker(AdapterHolder.MAIN);
-            findViewById(R.id.tab_personal)
-                    .setOnClickListener((View view) -> {
-                        Log.d(TAG, "rebindAdapters: " + "Clicked personal tab.");
-                        if (mViewPager.snapToPage(AdapterHolder.MAIN)) {
-                            mActivityContext.getStatsLogManager().logger()
-                                    .log(LAUNCHER_ALLAPPS_TAP_ON_PERSONAL_TAB);
-                        }
-                    });
-            findViewById(R.id.tab_work)
-                    .setOnClickListener((View view) -> {
-                        Log.d(TAG, "rebindAdapters: " + "Clicked work tab.");
-                        if (mViewPager.snapToPage(AdapterHolder.WORK)) {
-                            mActivityContext.getStatsLogManager().logger()
-                                    .log(LAUNCHER_ALLAPPS_TAP_ON_WORK_TAB);
-                        }
-                    });
+            TextView personalTab = findViewById(R.id.tab_personal);
+            TextView secondTab = findViewById(R.id.tab_work);
+            if (showCategoriesTab()) {
+                personalTab.setText(R.string.all_apps_tab);
+                personalTab.setContentDescription(getContext().getString(R.string.all_apps_tab));
+                secondTab.setText(R.string.all_apps_categories_tab);
+                secondTab.setContentDescription(
+                        getContext().getString(R.string.all_apps_categories_tab));
+            } else {
+                personalTab.setText(R.string.all_apps_personal_tab);
+                personalTab.setContentDescription(
+                        getContext().getString(R.string.all_apps_personal_tab_content_description));
+                secondTab.setText(R.string.all_apps_work_tab);
+                secondTab.setContentDescription(
+                        getContext().getString(R.string.all_apps_work_tab_content_description));
+            }
+            personalTab.setOnClickListener((View view) -> {
+                Log.d(TAG, "rebindAdapters: " + "Clicked personal tab.");
+                if (mViewPager.snapToPage(AdapterHolder.MAIN)) {
+                    mActivityContext.getStatsLogManager().logger()
+                            .log(LAUNCHER_ALLAPPS_TAP_ON_PERSONAL_TAB);
+                }
+            });
+            secondTab.setOnClickListener((View view) -> {
+                Log.d(TAG, "rebindAdapters: " + "Clicked work tab.");
+                if (mViewPager.snapToPage(AdapterHolder.WORK)) {
+                    mActivityContext.getStatsLogManager().logger()
+                            .log(LAUNCHER_ALLAPPS_TAP_ON_WORK_TAB);
+                }
+            });
             setDeviceManagementResources();
             if (mHeader.isSetUp()) {
                 onActivePageChanged(mViewPager.getNextPage());
             }
         } else {
             mainRecyclerView = findViewById(R.id.apps_list_view);
-            workRecyclerView = null;
+            secondRecyclerView = null;
             mAH.get(AdapterHolder.MAIN).setup(mainRecyclerView, mPersonalMatcher);
             mAH.get(AdapterHolder.WORK).mRecyclerView = null;
+            mAH.get(AdapterHolder.CATEGORIES).mRecyclerView = null;
         }
         setUpCustomRecyclerViewPool(
                 mainRecyclerView,
-                workRecyclerView,
+                secondRecyclerView,
                 mActivityContext.getActivityComponent().getSharedAppsPool());
         setupHeader();
 
@@ -670,6 +703,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
         mAllAppsStore.registerIconContainer(mAH.get(AdapterHolder.MAIN).mRecyclerView);
         mAllAppsStore.registerIconContainer(mAH.get(AdapterHolder.WORK).mRecyclerView);
+        mAllAppsStore.registerIconContainer(mAH.get(AdapterHolder.CATEGORIES).mRecyclerView);
         mAllAppsStore.registerIconContainer(mAH.get(AdapterHolder.SEARCH).mRecyclerView);
     }
 
@@ -694,7 +728,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
     private void replaceAppsRVContainer(boolean showTabs) {
         Log.d(TAG, "replaceAppsRVContainer: showTabs: " + showTabs);
-        for (int i = AdapterHolder.MAIN; i <= AdapterHolder.WORK; i++) {
+        for (int i = AdapterHolder.MAIN; i < mAH.size(); i++) {
+            if (i == AdapterHolder.SEARCH) {
+                continue;
+            }
             AdapterHolder adapterHolder = mAH.get(i);
             if (adapterHolder.mRecyclerView != null) {
                 adapterHolder.mRecyclerView.setLayoutManager(null);
@@ -726,7 +763,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             });
 
             mWorkManager.reset();
-            post(() -> mAH.get(AdapterHolder.WORK).applyPadding());
+            post(() -> getSecondPageHolder().applyPadding());
         } else {
             mWorkManager.detachWorkUtilityViews();
             mViewPager = null;
@@ -752,7 +789,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         boolean tabsHidden = !mUsingTabs;
         mHeader.setup(
                 mAH.get(AdapterHolder.MAIN).mRecyclerView,
-                mAH.get(AdapterHolder.WORK).mRecyclerView,
+                getSecondPageHolder().mRecyclerView,
                 (SearchRecyclerView) mAH.get(SEARCH).mRecyclerView,
                 getCurrentPage(),
                 tabsHidden);
@@ -1132,7 +1169,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         if (!mUsingTabs || isPersonalTab()) {
             return mAH.get(AdapterHolder.MAIN).mRecyclerView;
         } else {
-            return mAH.get(AdapterHolder.WORK).mRecyclerView;
+            return getSecondPageHolder().mRecyclerView;
         }
     }
 
@@ -1261,6 +1298,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     }
 
     private void setDeviceManagementResources() {
+        if (showCategoriesTab()) {
+            return;
+        }
         StringCache cache = mActivityContext.getStringCache();
         if (cache != null) {
             Button personalTab = findViewById(R.id.tab_personal);
@@ -1275,7 +1315,24 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      * Returns true if the container has work apps.
      */
     public boolean shouldShowTabs() {
-        return mHasWorkApps;
+        return mHasWorkApps || isCaddyEnabled();
+    }
+
+    private boolean showCategoriesTab() {
+        return !mHasWorkApps && isCaddyEnabled();
+    }
+
+    private boolean isCaddyEnabled() {
+        return LauncherPrefs.get(mActivityContext.asContext()).get(LauncherPrefs.DRAWER_CADDY);
+    }
+
+    private AdapterHolder getSecondPageHolder() {
+        return mAH.get(showCategoriesTab() ? AdapterHolder.CATEGORIES : AdapterHolder.WORK);
+    }
+
+    private int holderTypeForPage(int page) {
+        return page == AdapterHolder.WORK && showCategoriesTab()
+                ? AdapterHolder.CATEGORIES : page;
     }
 
     // Used by tests only
@@ -1582,6 +1639,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         public static final int MAIN = 0;
         public static final int WORK = 1;
         public static final int SEARCH = 2;
+        public static final int CATEGORIES = 3;
 
         private final int mType;
         public final BaseAllAppsAdapter mAdapter;

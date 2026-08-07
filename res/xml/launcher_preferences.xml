@@ -47,7 +47,7 @@
         android:key="pref_drawer_caddy"
         android:title="@string/drawer_caddy_title"
         android:summary="@string/drawer_caddy_summary"
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:persistent="true" />
 
 </androidx.preference.PreferenceScreen>

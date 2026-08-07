@@ -21,6 +21,7 @@ import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_I
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.model.data.FolderInfo.BIG_FOLDER_LARGE_ICON_COUNT;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -31,6 +32,7 @@ import android.graphics.drawable.Drawable;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -41,10 +43,11 @@ import java.util.List;
 public class LargeFolderPreview {
 
     private static final float PREVIEW_SIZE_FRACTION = 0.94f;
+    private static final float MAX_PREVIEW_SIZE_DP = 136f;
     private static final float QUADRANT_GAP_FRACTION = 0.06f;
     private static final float LARGE_ICON_FRACTION = 0.96f;
-    private static final float CLUSTER_ICON_FRACTION = 0.9f;
-    private static final float CLUSTER_GAP_FRACTION = 0.08f;
+    private static final float CLUSTER_ICON_FRACTION = 0.33f;
+    private static final float CLUSTER_SPACING_FRACTION = 0.485f;
 
     private static final int ACCENT = 0xFFC8783E;
 
@@ -68,18 +71,31 @@ public class LargeFolderPreview {
     private int mPreviewBottom;
     private boolean mAccepting;
 
+    public static final float PANEL_RADIUS_FRACTION = 0.16f;
+
+    public static int getPanelColor(Context context) {
+        return isNight(context) ? 0x30FFFFFF : 0x3AFFFFFF;
+    }
+
+    public static int getPanelStrokeColor(Context context) {
+        return isNight(context) ? 0x22FFFFFF : 0x26FFFFFF;
+    }
+
+    private static boolean isNight(Context context) {
+        return (context.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
     public LargeFolderPreview(FolderIcon icon) {
         mIcon = icon;
         mDensity = icon.getResources().getDisplayMetrics().density;
         for (int i = 0; i < mLargeRects.length; i++) {
             mLargeRects[i] = new Rect();
         }
-        final boolean night = (icon.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        mPanelPaint.setColor(night ? 0x30FFFFFF : 0x3AFFFFFF);
+        mPanelPaint.setColor(getPanelColor(icon.getContext()));
         mPanelStrokePaint.setStyle(Paint.Style.STROKE);
         mPanelStrokePaint.setStrokeWidth(mDensity);
-        mPanelStrokePaint.setColor(night ? 0x22FFFFFF : 0x26FFFFFF);
+        mPanelStrokePaint.setColor(getPanelStrokeColor(icon.getContext()));
         mAcceptFillPaint.setColor(0x33FFFFFF);
         mAcceptStrokePaint.setStyle(Paint.Style.STROKE);
         mAcceptStrokePaint.setStrokeWidth(2f * mDensity);
@@ -112,7 +128,9 @@ public class LargeFolderPreview {
     @Nullable
     private Drawable newIcon(ItemInfo item) {
         if (item instanceof WorkspaceItemInfo wii) {
-            return wii.newIcon(mIcon.getContext(), FLAG_THEMED);
+            int flags = ThemeManager.INSTANCE.get(mIcon.getContext()).isIconThemeEnabled()
+                    ? FLAG_THEMED : 0;
+            return wii.newIcon(mIcon.getContext(), flags);
         }
         return null;
     }
@@ -148,6 +166,9 @@ public class LargeFolderPreview {
     public int updateGeometry(int width, int height, int top, int labelHeight) {
         int availableHeight = height - top - labelHeight;
         int side = Math.round(Math.min(width, availableHeight) * PREVIEW_SIZE_FRACTION);
+        if (!mIcon.mInfo.forceBigPreview) {
+            side = Math.min(side, Math.round(MAX_PREVIEW_SIZE_DP * mDensity));
+        }
         if (side <= 0 || width <= 0) {
             mPreviewBottom = top;
             return mPreviewBottom;
@@ -213,16 +234,18 @@ public class LargeFolderPreview {
         if (mClusterDrawables.isEmpty()) {
             return;
         }
-        int gap = Math.round(quadrant.width() * CLUSTER_GAP_FRACTION);
-        int miniCell = (quadrant.width() - gap) / 2;
-        int[] mx = {quadrant.left, quadrant.left + miniCell + gap,
-                quadrant.left, quadrant.left + miniCell + gap};
-        int[] my = {quadrant.top, quadrant.top,
-                quadrant.top + miniCell + gap, quadrant.top + miniCell + gap};
+        int side = quadrant.width();
+        int spacing = Math.round(side * CLUSTER_SPACING_FRACTION);
+        int mini = Math.round(side * CLUSTER_ICON_FRACTION);
+        int cx = quadrant.centerX();
+        int cy = quadrant.centerY();
+        int[] centreX = {cx - spacing / 2, cx + spacing / 2, cx - spacing / 2, cx + spacing / 2};
+        int[] centreY = {cy - spacing / 2, cy - spacing / 2, cy + spacing / 2, cy + spacing / 2};
         int count = Math.min(mClusterDrawables.size(), 4);
         for (int i = 0; i < count; i++) {
-            mTmpRect.set(mx[i], my[i], mx[i] + miniCell, my[i] + miniCell);
-            drawCentered(canvas, mClusterDrawables.get(i), mTmpRect, CLUSTER_ICON_FRACTION);
+            mTmpRect.set(centreX[i] - mini / 2, centreY[i] - mini / 2,
+                    centreX[i] + mini / 2, centreY[i] + mini / 2);
+            drawCentered(canvas, mClusterDrawables.get(i), mTmpRect, 1f);
         }
     }
 

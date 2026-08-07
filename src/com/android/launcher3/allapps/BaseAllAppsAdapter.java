@@ -273,13 +273,18 @@ public abstract class BaseAllAppsAdapter
             case VIEW_TYPE_BOTTOM_VIEW_TO_SCROLL_TO:
                 return new ViewHolder(new View(mActivityContext.asContext()));
             case VIEW_TYPE_FOLDER: {
-                FrameLayout tile = new FrameLayout(parent.getContext());
-                int tileHeight = 2 * mActivityContext.getDeviceProfile()
-                        .getAllAppsProfile().getCellHeightPx();
+                FrameLayout tile = new FrameLayout(parent.getContext()) {
+                    @Override
+                    protected void onMeasure(int widthSpec, int heightSpec) {
+                        super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(
+                                MeasureSpec.getSize(widthSpec), MeasureSpec.EXACTLY));
+                    }
+                };
                 tile.setLayoutParams(new RecyclerView.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, tileHeight));
-                int tilePad = Math.round(
-                        10 * parent.getResources().getDisplayMetrics().density);
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+                int tilePad = mActivityContext.getDeviceProfile()
+                        .getAllAppsProfile().getLeftRightMargin() / 2;
                 tile.setPadding(tilePad, tilePad, tilePad, tilePad);
                 return new ViewHolder(tile);
             }
@@ -377,7 +382,7 @@ public abstract class BaseAllAppsAdapter
                 ViewGroup container = (ViewGroup) holder.itemView;
                 container.removeAllViews();
                 if (folderInfo != null) {
-                    FolderIcon folderIcon = FolderIcon.inflateFolderAndIcon(
+                    FolderIcon folderIcon = FolderIcon.inflateIcon(
                             R.layout.all_apps_big_folder_icon,
                             ActivityContext.lookupContext(container.getContext()),
                             container, folderInfo);

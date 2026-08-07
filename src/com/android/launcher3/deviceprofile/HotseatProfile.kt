@@ -150,7 +150,10 @@ data class HotseatProfile(
                     widthPx = 0,
                     numShownIcons = numShownHotseatIconsParam,
                     columnSpan = inv.numColumns,
-                    qsbWidth = 0,
+                    qsbWidth =
+                        workspaceProfile.getIconToIconWidthForColumns(inv.numColumns) -
+                            (workspaceProfile.iconSizePx -
+                                getIconVisibleSizePx(workspaceProfile.iconSizePx)),
                     borderSpace = 0,
                 )
 

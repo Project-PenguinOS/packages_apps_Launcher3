@@ -16,11 +16,15 @@
 
 package com.android.launcher3.allapps;
 
+import static com.android.launcher3.Flags.blurOnMoreSurfaces;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
@@ -28,7 +32,9 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
@@ -45,6 +51,8 @@ import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.util.BlurBackgroundHelper;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
 
@@ -54,14 +62,15 @@ public class CaddyCategoryView extends AbstractFloatingView {
     private static final int WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT;
 
     private static final int PANEL_MARGIN_DP = 16;
-    private static final int PANEL_RADIUS_DP = 28;
-    private static final int SCRIM_ALPHA = 0xB3;
+    private static final int PANEL_ALPHA = 0xCC;
+    private static final int SCRIM_ALPHA = 0x4D;
     private static final int OPEN_DURATION = 300;
 
     private final ActivityContext mActivityContext;
+    private final BlurBackgroundHelper mBlurBackgroundHelper;
     private final Rect mTileRect = new Rect();
 
-    private LinearLayout mPanel;
+    private BlurPanel mPanel;
 
     public CaddyCategoryView(Context context) {
         this(context, null);
@@ -70,6 +79,8 @@ public class CaddyCategoryView extends AbstractFloatingView {
     public CaddyCategoryView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mActivityContext = ActivityContext.lookupContext(context);
+        mBlurBackgroundHelper =
+                mActivityContext.getActivityComponent().getBlurBackgroundHelper();
     }
 
     public static CaddyCategoryView show(FolderIcon tile) {
@@ -78,10 +89,46 @@ public class CaddyCategoryView extends AbstractFloatingView {
 
         CaddyCategoryView view = new CaddyCategoryView(tile.getContext());
         view.populate(tile);
+        if (blurOnMoreSurfaces()) {
+            view.mBlurBackgroundHelper.prepareToOpenBlurSurface();
+        }
         dragLayer.addView(view, new BaseDragLayer.LayoutParams(MATCH_PARENT, MATCH_PARENT));
         view.mIsOpen = true;
         view.animateOpenFrom(tile);
         return view;
+    }
+
+    private class BlurPanel extends LinearLayout {
+
+        private final GradientDrawable mPanelBackground = new GradientDrawable();
+
+        BlurPanel(Context context) {
+            super(context);
+            final float radius = Themes.getDialogCornerRadius(context);
+            mPanelBackground.setCornerRadius(radius);
+            mPanelBackground.setColor(Themes.getAttrColor(context, R.attr.folderBackgroundColor));
+            mPanelBackground.setAlpha(PANEL_ALPHA);
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
+            setClipToOutline(true);
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            mPanelBackground.setBounds(0, 0, w, h);
+        }
+
+        @Override
+        protected void dispatchDraw(Canvas canvas) {
+            mBlurBackgroundHelper.drawFolderBlur(canvas, null, this);
+            mPanelBackground.draw(canvas);
+            super.dispatchDraw(canvas);
+        }
     }
 
     private void populate(FolderIcon tile) {
@@ -92,19 +139,14 @@ public class CaddyCategoryView extends AbstractFloatingView {
         setGravity(Gravity.CENTER);
         setScrimAlpha(0);
 
-        mPanel = new LinearLayout(context);
+        mPanel = new BlurPanel(context);
         mPanel.setOrientation(VERTICAL);
-        GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setCornerRadius(dp(PANEL_RADIUS_DP));
-        panelBg.setColor(Color.argb(0xF2, 0x1c, 0x1c, 0x1e));
-        mPanel.setBackground(panelBg);
         int pad = dp(16);
         mPanel.setPadding(pad, pad, pad, pad);
-        mPanel.setClipToOutline(true);
 
         TextView title = new TextView(context);
         title.setText(info != null ? info.title : "");
-        title.setTextColor(Color.WHITE);
+        title.setTextColor(Themes.getAttrColor(context, R.attr.folderTextColor));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         title.setPadding(dp(4), dp(4), dp(4), dp(12));
         mPanel.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
@@ -144,41 +186,19 @@ public class CaddyCategoryView extends AbstractFloatingView {
     }
 
     private void animateOpenFrom(FolderIcon tile) {
-        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(tile, mTileRect);
-        getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        startContainerTransform(true , null);
-                    }
-                });
     }
 
-    private void startContainerTransform(boolean opening, @Nullable Runnable onEnd) {
-        if (mPanel.getWidth() == 0 || mPanel.getHeight() == 0) {
-            if (onEnd != null) onEnd.run();
-            return;
-        }
-        Rect panelRect = new Rect();
-        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(mPanel, panelRect);
-
-        float sx = (float) mTileRect.width() / mPanel.getWidth();
-        float sy = (float) mTileRect.height() / mPanel.getHeight();
-        float tx = mTileRect.left - panelRect.left;
-        float ty = mTileRect.top - panelRect.top;
-
-        mPanel.setPivotX(0f);
-        mPanel.setPivotY(0f);
-        mPanel.setScaleX(opening ? sx : 1f);
-        mPanel.setScaleY(opening ? sy : 1f);
-        mPanel.setTranslationX(opening ? tx : 0f);
-        mPanel.setTranslationY(opening ? ty : 0f);
+    private void startTransform(boolean opening, @Nullable Runnable onEnd) {
+        float fromScale = opening ? 0.9f : 1f;
+        float toScale = opening ? 1f : 0.9f;
+        mPanel.setPivotX(mPanel.getWidth() / 2f);
+        mPanel.setPivotY(mPanel.getHeight() / 2f);
+        mPanel.setScaleX(fromScale);
+        mPanel.setScaleY(fromScale);
         mPanel.setAlpha(opening ? 0f : 1f);
 
         mPanel.animate()
-                .scaleX(opening ? 1f : sx).scaleY(opening ? 1f : sy)
-                .translationX(opening ? 0f : tx).translationY(opening ? 0f : ty)
+                .scaleX(toScale).scaleY(toScale)
                 .alpha(opening ? 1f : 0f)
                 .setDuration(OPEN_DURATION)
                 .setListener(new AnimatorListenerAdapter() {
@@ -209,11 +229,11 @@ public class CaddyCategoryView extends AbstractFloatingView {
             closeComplete();
             return;
         }
-        startContainerTransform(false , this::closeComplete);
     }
 
     private void closeComplete() {
         mIsOpen = false;
+        mBlurBackgroundHelper.folderCloseComplete();
         if (getParent() instanceof ViewGroup parent) {
             parent.removeView(this);
         }
