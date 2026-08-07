@@ -896,9 +896,15 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     private FolderAnimationCreator getFolderAnimationManager() {
         boolean shouldUseSpringMotion = Flags.enableLauncherIconShapes()
                 && Flags.enableExpressiveFolderExpansion();
+        ShapeDelegate themeShape =
+                ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
+        // TEMP diagnostic (remove once the close-shape is fixed): which animator + big-folder +
+        // folder shape drive the open/close, so we stop guessing which path produces the circle.
+        Log.d("CaddyAnim", "spring=" + shouldUseSpringMotion
+                + " bigFolder=" + (mFolderIcon != null && mFolderIcon.isBigFolder())
+                + " folderShape=" + themeShape.getClass().getSimpleName());
         if (shouldUseSpringMotion) {
-            ShapeDelegate shapeDelegate =
-                    ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
+            ShapeDelegate shapeDelegate = themeShape;
             return new FolderAnimationSpringBuilderManager(
                     this, shapeDelegate, mLauncherDelegate
             );

@@ -159,42 +159,21 @@ public class CaddyCategoryView extends AbstractFloatingView {
     }
 
     private void animateOpenFrom(FolderIcon tile) {
-        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(tile, mTileRect);
-        // Run the container transform once the panel has been laid out and has real bounds.
-        getViewTreeObserver().addOnGlobalLayoutListener(
-                new ViewTreeObserver.OnGlobalLayoutListener() {
-                    @Override
-                    public void onGlobalLayout() {
-                        getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                        startContainerTransform(true /* opening */, null);
-                    }
-                });
+        startTransform(true /* opening */, null);
     }
 
-    private void startContainerTransform(boolean opening, @Nullable Runnable onEnd) {
-        if (mPanel.getWidth() == 0 || mPanel.getHeight() == 0) {
-            if (onEnd != null) onEnd.run();
-            return;
-        }
-        Rect panelRect = new Rect();
-        mActivityContext.getDragLayer().getDescendantRectRelativeToSelf(mPanel, panelRect);
-
-        float sx = (float) mTileRect.width() / mPanel.getWidth();
-        float sy = (float) mTileRect.height() / mPanel.getHeight();
-        float tx = mTileRect.left - panelRect.left;
-        float ty = mTileRect.top - panelRect.top;
-
-        mPanel.setPivotX(0f);
-        mPanel.setPivotY(0f);
-        mPanel.setScaleX(opening ? sx : 1f);
-        mPanel.setScaleY(opening ? sy : 1f);
-        mPanel.setTranslationX(opening ? tx : 0f);
-        mPanel.setTranslationY(opening ? ty : 0f);
+    /** A simple, always-visible center fade + scale. (Expand-from-tile can be layered on later.) */
+    private void startTransform(boolean opening, @Nullable Runnable onEnd) {
+        float fromScale = opening ? 0.9f : 1f;
+        float toScale = opening ? 1f : 0.9f;
+        mPanel.setPivotX(mPanel.getWidth() / 2f);
+        mPanel.setPivotY(mPanel.getHeight() / 2f);
+        mPanel.setScaleX(fromScale);
+        mPanel.setScaleY(fromScale);
         mPanel.setAlpha(opening ? 0f : 1f);
 
         mPanel.animate()
-                .scaleX(opening ? 1f : sx).scaleY(opening ? 1f : sy)
-                .translationX(opening ? 0f : tx).translationY(opening ? 0f : ty)
+                .scaleX(toScale).scaleY(toScale)
                 .alpha(opening ? 1f : 0f)
                 .setDuration(OPEN_DURATION)
                 .setListener(new AnimatorListenerAdapter() {
@@ -225,7 +204,7 @@ public class CaddyCategoryView extends AbstractFloatingView {
             closeComplete();
             return;
         }
-        startContainerTransform(false /* closing */, this::closeComplete);
+        startTransform(false /* closing */, this::closeComplete);
     }
 
     private void closeComplete() {

@@ -904,6 +904,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (mInfo != null && mInfo.forceBigPreview) {
+            // Drawer ("caddy") category tiles live inside the all-apps RecyclerView. The FolderIcon's
+            // own touch handling doesn't reliably fire performClick there, so let the touch pass
+            // through and have the RecyclerView tile's OnClickListener open the category page.
+            return false;
+        }
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             // Remember whether the press landed on one of the big folder's large icons, so the

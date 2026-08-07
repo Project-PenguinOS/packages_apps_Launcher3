@@ -392,6 +392,11 @@ public abstract class BaseAllAppsAdapter
                     container.addView(folderIcon, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
+                    // Open the in-drawer category page from the tile itself: FolderIcon touches pass
+                    // through inside the RecyclerView (see FolderIcon.onTouchEvent), so the reliable
+                    // click target is this tile container.
+                    container.setOnClickListener(v ->
+                            com.android.launcher3.allapps.CaddyCategoryView.show(folderIcon));
                 }
                 break;
             }
