@@ -55,6 +55,7 @@ public abstract class AbstractFloatingView extends LinearLayout implements Touch
 
     @IntDef(flag = true, value = {
             TYPE_FOLDER,
+            TYPE_CADDY_CATEGORY,
             TYPE_ACTION_POPUP,
             TYPE_WIDGETS_BOTTOM_SHEET,
             TYPE_WIDGET_RESIZE_FRAME,
@@ -86,6 +87,7 @@ public abstract class AbstractFloatingView extends LinearLayout implements Touch
     public static final int TYPE_ACTION_POPUP = 1 << 1;
     public static final int TYPE_WIDGETS_BOTTOM_SHEET = 1 << 2;
     public static final int TYPE_WIDGET_RESIZE_FRAME = 1 << 3;
+    public static final int TYPE_CADDY_CATEGORY = 1 << 4;
     public static final int TYPE_ON_BOARD_POPUP = 1 << 5;
     public static final int TYPE_DISCOVERY_BOUNCE = 1 << 6;
     public static final int TYPE_SNACKBAR = 1 << 7;
@@ -111,7 +113,7 @@ public abstract class AbstractFloatingView extends LinearLayout implements Touch
     public static final int TYPE_TASKBAR_OVERFLOW = 1 << 25;
     public static final int TYPE_DIALOG_LISTENER = 1 << 26;
 
-    public static final int TYPE_ALL = TYPE_FOLDER | TYPE_ACTION_POPUP
+    public static final int TYPE_ALL = TYPE_FOLDER | TYPE_ACTION_POPUP | TYPE_CADDY_CATEGORY
             | TYPE_WIDGETS_BOTTOM_SHEET | TYPE_WIDGET_RESIZE_FRAME
             | TYPE_ON_BOARD_POPUP | TYPE_DISCOVERY_BOUNCE | TYPE_TASK_MENU
             | TYPE_OPTIONS_POPUP | TYPE_SNACKBAR | TYPE_LISTENER | TYPE_ALL_APPS_EDU

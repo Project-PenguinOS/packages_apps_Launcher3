@@ -873,6 +873,7 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             return true;
         }
         if (mInfo != null && mInfo.forceBigPreview) {
+            com.android.launcher3.allapps.CaddyCategoryView.show(this);
             return true;
         }
         return super.performClick();
