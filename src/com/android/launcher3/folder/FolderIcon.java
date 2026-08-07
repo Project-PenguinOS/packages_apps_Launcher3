@@ -930,11 +930,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             ItemClickHandler.onClickAppShortcut(null, target, launcher);
             return true;
         }
-        // Caddy drawer folders: opening the workspace-style Folder from the app drawer animates
-        // against the home screen (dumping the user to home with a small-folder flash). Until a
-        // proper in-drawer open exists, a tap that isn't on one of the big launch icons is a no-op
-        // for drawer folders.
+        // Caddy drawer folders open an in-drawer category page (CaddyCategoryView) that expands
+        // from this tile, instead of the workspace Folder (which animates against / drops to the
+        // home screen). A tap on a big launch icon above already launched that app.
         if (mInfo != null && mInfo.forceBigPreview) {
+            com.android.launcher3.allapps.CaddyCategoryView.show(this);
             return true;
         }
         return super.performClick();
