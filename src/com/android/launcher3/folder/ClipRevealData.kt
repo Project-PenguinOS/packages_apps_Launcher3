@@ -45,6 +45,8 @@ data class ClipRevealData(
     companion object Factory {
         private const val CONTENT_REVEAL_PADDING_PERCENTAGE = ICON_OVERLAP_FACTOR - 1
 
+        private const val BIG_FOLDER_REVEAL_RADIUS_RATIO = 0.32f
+
         /** Calculates start and end values for revealing [Folder] background and content */
         fun Folder.getClipRevealData(
             shapeDelegate: ShapeDelegate,
@@ -52,6 +54,10 @@ data class ClipRevealData(
         ): ClipRevealData {
             val folderBackground = background as GradientDrawable
             val deviceProfile = mActivityContext.deviceProfile
+            val effectiveShape =
+                if (folderIcon.isBigFolder)
+                    ShapeDelegate.RoundedSquare(BIG_FOLDER_REVEAL_RADIUS_RATIO)
+                else shapeDelegate
 
             with(folderAnimationData) {
                 // Setup start and end area for revealing Folder background
@@ -90,7 +96,7 @@ data class ClipRevealData(
                     Rect(pageStart, 0, pageStart + layoutParams.width, layoutParams.height)
                 return ClipRevealData(
                     isOpening = folderAnimationData.isOpening,
-                    shapeDelegate = shapeDelegate,
+                    shapeDelegate = effectiveShape,
                     backgroundStartRect = backgroundStartRect,
                     backgroundEndRect = backgroundEndRect,
                     contentStart = contentStart,
