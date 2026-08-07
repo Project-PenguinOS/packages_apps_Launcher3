@@ -261,7 +261,15 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         }
         play(a, getAnimator(mFolder.mFooter, ALPHA, 0, 1f), footerStartDelay, footerAlphaDuration);
 
-        ShapeDelegate shapeDelegate = ThemeManager.INSTANCE.get(mContext).getFolderShape();
+        // Big ("caddy") folders collapse into their large 2x2 preview tile, whose panel corner
+        // radius is width * 0.16 (see LargeFolderPreview). getFolderShape() is a Circle for round
+        // icon packs, which made the folder collapse to a circle and then snap to the rounded-square
+        // tile on close. The reveal computes its closed corner radius as (startRect.width() / 2) *
+        // radiusRatio, so a RoundedSquare(0.32) reproduces the tile exactly and the folder morphs
+        // smoothly between the tile and the open folder both ways. Normal folders keep the theme.
+        ShapeDelegate shapeDelegate = bigFolder
+                ? new ShapeDelegate.RoundedSquare(0.32f)
+                : ThemeManager.INSTANCE.get(mContext).getFolderShape();
         // Create reveal animator for the folder background
         play(a, shapeDelegate.createRevealAnimator(
                 mFolder, startRect, endRect, finalRadius, !mIsOpening));
