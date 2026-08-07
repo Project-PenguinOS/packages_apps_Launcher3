@@ -384,6 +384,8 @@ public abstract class BaseAllAppsAdapter
                     container.addView(folderIcon, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
+                    container.setOnClickListener(v ->
+                            com.android.launcher3.allapps.CaddyCategoryView.show(folderIcon));
                 }
                 break;
             }

@@ -853,6 +853,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        if (mInfo != null && mInfo.forceBigPreview) {
+            return false;
+        }
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             mPendingLaunchTarget = isBigFolder()

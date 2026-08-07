@@ -894,9 +894,13 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     private FolderAnimationCreator getFolderAnimationManager() {
         boolean shouldUseSpringMotion = Flags.enableLauncherIconShapes()
                 && Flags.enableExpressiveFolderExpansion();
+        ShapeDelegate themeShape =
+                ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
+        Log.d("CaddyAnim", "spring=" + shouldUseSpringMotion
+                + " bigFolder=" + (mFolderIcon != null && mFolderIcon.isBigFolder())
+                + " folderShape=" + themeShape.getClass().getSimpleName());
         if (shouldUseSpringMotion) {
-            ShapeDelegate shapeDelegate =
-                    ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
+            ShapeDelegate shapeDelegate = themeShape;
             return new FolderAnimationSpringBuilderManager(
                     this, shapeDelegate, mLauncherDelegate
             );
