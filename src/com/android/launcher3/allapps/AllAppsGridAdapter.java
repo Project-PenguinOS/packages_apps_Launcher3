@@ -41,6 +41,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class AllAppsGridAdapter extends BaseAllAppsAdapter {
 
     public static final String TAG = "AppsGridAdapter";
+
+    public static final int FOLDERS_PER_ROW = 2;
+
     private final AppsGridLayoutManager mGridLayoutMgr;
     private final CopyOnWriteArrayList<OnLayoutCompletedListener> mOnLayoutCompletedListeners =
             new CopyOnWriteArrayList<>();
@@ -191,6 +194,9 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
                 totalSpans *= itemPerRow;
             }
         }
+        if (totalSpans % FOLDERS_PER_ROW != 0) {
+            totalSpans *= FOLDERS_PER_ROW;
+        }
         mGridLayoutMgr.setSpanCount(totalSpans);
     }
 
@@ -213,7 +219,7 @@ public class AllAppsGridAdapter extends BaseAllAppsAdapter {
             }
             int viewType = items.get(position).viewType;
             if (viewType == VIEW_TYPE_FOLDER) {
-                return Math.min(totalSpans, 2 * (totalSpans / mAppsPerRow));
+                return Math.max(1, totalSpans / FOLDERS_PER_ROW);
             }
             if (isIconViewType(viewType)) {
                 return totalSpans / mAppsPerRow;

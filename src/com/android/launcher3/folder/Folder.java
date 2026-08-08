@@ -807,7 +807,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 if (Flags.enableExpressiveFolderExpansion()) {
                     Trace.beginSection("FolderSpringAnimationOpen");
                 }
-                mFolderIcon.setIconVisible(false);
+                if (!mFolderIcon.isBigFolder()) {
+                    mFolderIcon.setIconVisible(false);
+                }
                 mFolderIcon.drawLeaveBehindIfExists();
             }
 
@@ -816,6 +818,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 if (Flags.enableExpressiveFolderExpansion()) {
                     Trace.endSection();
                 }
+                mFolderIcon.setIconVisible(false);
+                mFolderIcon.setBigPreviewAlpha(1f);
+                setAlpha(1f);
                 setState(STATE_OPEN);
                 announceAccessibilityChanges();
                 AccessibilityManagerCompat.sendTestProtocolEventToTest(getContext(),
@@ -894,13 +899,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
     private FolderAnimationCreator getFolderAnimationManager() {
         boolean shouldUseSpringMotion = Flags.enableLauncherIconShapes()
                 && Flags.enableExpressiveFolderExpansion();
-        ShapeDelegate themeShape =
-                ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
-        Log.d("CaddyAnim", "spring=" + shouldUseSpringMotion
-                + " bigFolder=" + (mFolderIcon != null && mFolderIcon.isBigFolder())
-                + " folderShape=" + themeShape.getClass().getSimpleName());
         if (shouldUseSpringMotion) {
-            ShapeDelegate shapeDelegate = themeShape;
+            ShapeDelegate shapeDelegate =
+                    ThemeManager.INSTANCE.get(mActivityContext.asContext()).getFolderShape();
             return new FolderAnimationSpringBuilderManager(
                     this, shapeDelegate, mLauncherDelegate
             );
@@ -989,6 +990,9 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
                 }
                 setWindowInsetsAnimationCallback(null);
                 mIsAnimatingClosed = true;
+                if (mFolderIcon != null && mFolderIcon.isBigFolder()) {
+                    mFolderIcon.setIconVisible(true);
+                }
             }
 
             @Override
@@ -1031,9 +1035,12 @@ public class Folder extends AbstractFloatingView implements ClipPathView, DragSo
         }
         mActivityContext.getDragController().removeDropTarget(this);
         clearFocus();
+        mContent.setAlpha(1f);
+        setAlpha(1f);
         if (mFolderIcon != null) {
             mFolderIcon.setVisibility(View.VISIBLE);
             mFolderIcon.setIconVisible(true);
+            mFolderIcon.setBigPreviewAlpha(1f);
             mFolderIcon.mFolderName.getFloatingViewTextAlpha().setValue(
                     1f);
             if (wasAnimated) {

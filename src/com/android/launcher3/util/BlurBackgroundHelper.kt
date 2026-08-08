@@ -34,6 +34,8 @@ constructor() {
 
     open fun prepareToOpenFolder(folder: Folder) {}
 
+    open fun prepareToOpenBlurSurface() {}
+
     open fun drawFolderBlur(canvas: Canvas, pathWrapper: PathWrapper?, view: View) {}
 
     open fun folderCloseComplete() {}

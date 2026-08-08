@@ -27,8 +27,7 @@
     <!-- String representing the fragment class for settings activity.-->
     <string name="settings_fragment_name" translatable="false">com.android.launcher3.settings.SettingsActivity$LauncherSettingsFragment</string>
 
-    <!-- String representing the fallback search package name.-->
-    <string name="fallback_search_package_name" translatable="false"></string>
+    <string name="fallback_search_package_name" translatable="false">com.google.android.googlequicksearchbox</string>
 
     <!-- AllApps & Launcher transitions -->
     <!-- The duration of the PagedView page snap animation -->
@@ -69,7 +68,7 @@
     <!-- Scalable Grid configuration -->
     <!-- This is a float because it is converted to dp later in DeviceProfile -->
     <dimen name="hotseat_bar_bottom_space_default">48</dimen>
-    <dimen name="hotseat_qsb_space_default">0</dimen>
+    <dimen name="hotseat_qsb_space_default">24</dimen>
 
     <!-- Whether to enable background preloading of task thumbnails. -->
     <bool name="config_enableTaskSnapshotPreloading">true</bool>
@@ -216,6 +215,8 @@
     <!-- Disables the full workspace blur and zoom effects behind surfaces like the "All apps" panel
          or the widget picker. -->
     <bool name="reduce_workspace_blur_usage">false</bool>
+
+    <integer name="config_allAppsScrimAlpha">178</integer>
 
     <!-- Home organizer -->
     <dimen name="home_organizer_background_blur_radius">30dp</dimen>

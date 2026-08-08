@@ -262,7 +262,7 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
             }
 
         @JvmField
-        val DRAWER_CADDY = backedUpItem("pref_drawer_caddy", false)
+        val DRAWER_CADDY = backedUpItem("pref_drawer_caddy", true)
 
         @JvmField
         val PROMISE_ICON_IDS = nonRestorableItem(InstallSessionHelper.PROMISE_ICON_IDS, "")

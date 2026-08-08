@@ -37,7 +37,6 @@ import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.android.launcher3.Flags;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.model.data.AppInfo;
@@ -116,6 +115,7 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
     private int mNumAppsPerRowAllApps;
     private int mNumAppRowsInAdapter;
     private Predicate<ItemInfo> mItemFilter;
+    private boolean mCaddyEnabled;
 
     public AlphabeticalAppsList(ActivityContext activityContext, @Nullable AllAppsStore appsStore,
             WorkProfileManager workProfileManager, PrivateProfileManager privateProfileManager) {
@@ -459,8 +459,16 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
         return position;
     }
 
+    public void setCaddyEnabled(boolean enabled) {
+        if (mCaddyEnabled == enabled) {
+            return;
+        }
+        mCaddyEnabled = enabled;
+        onAppsUpdated();
+    }
+
     private boolean isCaddyEnabled() {
-        return LauncherPrefs.get(mActivityContext.asContext()).get(LauncherPrefs.DRAWER_CADDY);
+        return mCaddyEnabled;
     }
 
     private int addCaddyFolders(List<AppInfo> appList, int startPosition) {
