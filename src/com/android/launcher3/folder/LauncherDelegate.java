@@ -78,6 +78,13 @@ public class LauncherDelegate {
                         // folder
                         CellLayout cellLayout = mLauncher.getCellLayout(info.container,
                                 mLauncher.getCellPosMapper().mapModelToPresenter(info).screenId);
+                        if (cellLayout == null) {
+                            // The folder isn't on a workspace screen or the hotseat, so there is no
+                            // cell to promote its last item into. Only transient folders (e.g. the
+                            // drawer's category tiles) get here; leave the folder alone rather than
+                            // inflating against a null CellLayout and crashing in addInScreen().
+                            return;
+                        }
                         finalItem =  info.getContents().remove(0);
                         newIcon = mLauncher.getItemInflater().inflateItem(finalItem, cellLayout);
                         mLauncher.getModelWriter().addOrMoveItemInDatabase(finalItem,

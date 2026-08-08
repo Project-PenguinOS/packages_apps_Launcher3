@@ -150,7 +150,17 @@ data class HotseatProfile(
                     widthPx = 0,
                     numShownIcons = numShownHotseatIconsParam,
                     columnSpan = inv.numColumns,
-                    qsbWidth = 0,
+                    // A non-scalable grid still draws the hotseat search bar (QSB), so it needs a
+                    // real width: Hotseat#onMeasure turns this into an EXACTLY spec, and a 0 here
+                    // measured the search widget to nothing -- the bar was bound and laid out but
+                    // zero pixels wide, which is why it looked "missing" with no error anywhere.
+                    // The phone grids (5_by_5 and friends) are not scalable; only tablet/desktop
+                    // are, so this is the common path on a phone. Span the icon row, which is what
+                    // the scalable path lands on for a non-inline QSB.
+                    qsbWidth =
+                        workspaceProfile.getIconToIconWidthForColumns(inv.numColumns) -
+                            (workspaceProfile.iconSizePx -
+                                getIconVisibleSizePx(workspaceProfile.iconSizePx)),
                     borderSpace = 0,
                 )
 

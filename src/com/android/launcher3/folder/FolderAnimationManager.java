@@ -21,6 +21,7 @@ import static android.view.View.ALPHA;
 import static com.android.launcher3.LauncherAnimUtils.getScaleProperty;
 import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN_PREVIEW;
 import static com.android.launcher3.folder.FolderGridOrganizer.createFolderGridOrganizer;
+import static com.android.launcher3.folder.FolderIcon.BIG_PREVIEW_ALPHA;
 import static com.android.launcher3.util.MultiPropertyFactory.MULTI_PROPERTY_VALUE;
 
 import android.animation.Animator;
@@ -67,6 +68,10 @@ public class FolderAnimationManager implements FolderAnimationCreator {
     private static final float EXTRA_FOLDER_REVEAL_RADIUS_PERCENTAGE = 0.125F;
     private static final int FOLDER_NAME_ALPHA_DURATION = 32;
     private static final int LARGE_FOLDER_FOOTER_DURATION = 128;
+    // Fraction of the open/close duration spent cross-fading a big folder against its tile preview.
+    // Pinned to the end of the close (start of the open): while the panel is still visibly offset
+    // from the tile, showing both reads as a double image. See createAnimatorSet().
+    private static final float BIG_FOLDER_FADE_FRACTION = 0.3f;
 
     private Folder mFolder;
     private FolderPagedView mContent;
@@ -203,9 +208,15 @@ public class FolderAnimationManager implements FolderAnimationCreator {
         final float xDistance = initialX - lp.x;
         final float yDistance = initialY - lp.y;
 
-        // Set up the Folder background.
-        final int initialColor = Themes.getAttrColor(mContext, R.attr.folderPreviewColor);
-        final int finalColor = Themes.getAttrColor(mContext, R.attr.folderBackgroundColor);
+        // Set up the Folder background. A big ("caddy") folder expands out of a frosted translucent
+        // tile, so the open folder paints that same surface -- the themed folderBackgroundColor is
+        // an opaque panel, which read as a different background from the tile it grew from.
+        final int initialColor = bigFolder
+                ? LargeFolderPreview.getPanelColor(mContext)
+                : Themes.getAttrColor(mContext, R.attr.folderPreviewColor);
+        final int finalColor = bigFolder
+                ? LargeFolderPreview.getPanelColor(mContext)
+                : Themes.getAttrColor(mContext, R.attr.folderBackgroundColor);
 
         mFolderBackground.mutate();
         mFolderBackground.setColor(mIsOpening ? initialColor : finalColor);
@@ -358,6 +369,9 @@ public class FolderAnimationManager implements FolderAnimationCreator {
                 mFolder.mFooter.setScaleY(1f);
                 mFolder.mFooter.setTranslationX(0f);
                 mFolder.getFolderName().setAlpha(1f);
+                // Also runs on cancel, which would otherwise leave the cross-fade stuck part way.
+                mFolderIcon.setBigPreviewAlpha(1f);
+                mFolder.setAlpha(1f);
 
                 mFolder.setClipChildren(mFolderClipChildren);
                 mFolder.setClipToPadding(mFolderClipToPadding);
@@ -385,6 +399,34 @@ public class FolderAnimationManager implements FolderAnimationCreator {
                     // Background can have a scaled radius in drag and drop mode, so we need to add
                     // the difference to keep the preview items centered.
                     (int) (previewItemOffsetX / scaleRelativeToDragLayer) + radiusDiff, radiusDiff);
+        } else {
+            // Cross-fade the folder's real content against the tile's big preview.
+            //
+            // A normal folder hides its icon for the whole animation and instead flies the small
+            // clipped preview items to/from the folder grid, which visually bridges the two. A big
+            // folder has no such preview items, so with the icon hidden the only thing on screen is
+            // the folder content scaling between tile size and full size: on close it shrank to a
+            // grid of tiny icons and the tile's real preview (3 large icons + cluster) appeared in a
+            // single frame at closeComplete(). That one-frame swap is the "renders small then snaps"
+            // pop.
+            //
+            // The tile therefore stays drawn for the whole animation (Folder owns the icon's
+            // visibility) and the two cross-fade at the end of the close.
+            //
+            // The fade goes on the folder view, not on its content: the tile is painted by the
+            // workspace, underneath the folder, so fading only the content left the folder's own
+            // glass panel covering it. The tile fading in behind that panel was invisible -- an
+            // empty panel held for most of the close, then the icons appeared in a single frame
+            // once closeComplete() detached the folder. Fading the folder takes its panel along.
+            mFolder.setAlpha(mIsOpening ? 0f : 1f);
+            mFolderIcon.setBigPreviewAlpha(mIsOpening ? 1f : 0f);
+            // Both halves share one window so they stay in step. getAnimator() reverses the
+            // endpoints when closing, so the tile is 1 -> 0 on open and 0 -> 1 on close, and the
+            // folder the other way around.
+            int fade = Math.max(1, Math.round(mDuration * BIG_FOLDER_FADE_FRACTION));
+            int fadeDelay = mIsOpening ? 0 : mDuration - fade;
+            play(a, getAnimator(mFolder, ALPHA, 0f, 1f), fadeDelay, fade);
+            play(a, getAnimator(mFolderIcon, BIG_PREVIEW_ALPHA, 1f, 0f), fadeDelay, fade);
         }
         return a;
     }

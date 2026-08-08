@@ -16,11 +16,15 @@
 
 package com.android.launcher3.allapps;
 
+import static com.android.launcher3.Flags.blurOnMoreSurfaces;
+
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
 import android.animation.ValueAnimator;
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
@@ -28,7 +32,9 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewOutlineProvider;
 import android.view.ViewTreeObserver;
 import android.widget.GridLayout;
 import android.widget.LinearLayout;
@@ -45,6 +51,8 @@ import com.android.launcher3.folder.FolderIcon;
 import com.android.launcher3.model.data.FolderInfo;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.util.BlurBackgroundHelper;
+import com.android.launcher3.util.Themes;
 import com.android.launcher3.views.ActivityContext;
 import com.android.launcher3.views.BaseDragLayer;
 
@@ -64,14 +72,16 @@ public class CaddyCategoryView extends AbstractFloatingView {
     private static final int WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT;
 
     private static final int PANEL_MARGIN_DP = 16;
-    private static final int PANEL_RADIUS_DP = 28;
-    private static final int SCRIM_ALPHA = 0xB3; // ~70% black scrim behind the panel
+    /** Matches {@link com.android.launcher3.folder.Folder}'s background alpha. */
+    private static final int PANEL_ALPHA = 0xCC;
+    private static final int SCRIM_ALPHA = 0x4D; // light dim; the blur does the heavy lifting
     private static final int OPEN_DURATION = 300;
 
     private final ActivityContext mActivityContext;
+    private final BlurBackgroundHelper mBlurBackgroundHelper;
     private final Rect mTileRect = new Rect();
 
-    private LinearLayout mPanel;
+    private BlurPanel mPanel;
 
     public CaddyCategoryView(Context context) {
         this(context, null);
@@ -80,6 +90,8 @@ public class CaddyCategoryView extends AbstractFloatingView {
     public CaddyCategoryView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
         mActivityContext = ActivityContext.lookupContext(context);
+        mBlurBackgroundHelper =
+                mActivityContext.getActivityComponent().getBlurBackgroundHelper();
     }
 
     /** Opens the category page for a drawer category tile. */
@@ -89,10 +101,59 @@ public class CaddyCategoryView extends AbstractFloatingView {
 
         CaddyCategoryView view = new CaddyCategoryView(tile.getContext());
         view.populate(tile);
+        // Snapshot the drawer for the blur *before* attaching, or the snapshot would contain the
+        // panel itself. Same capture the workspace folder does in Folder#animateOpen.
+        if (blurOnMoreSurfaces()) {
+            view.mBlurBackgroundHelper.prepareToOpenBlurSurface();
+        }
         dragLayer.addView(view, new BaseDragLayer.LayoutParams(MATCH_PARENT, MATCH_PARENT));
         view.mIsOpen = true;
         view.animateOpenFrom(tile);
         return view;
+    }
+
+    /**
+     * The category panel. Draws the same blurred backdrop the workspace folder does, under the same
+     * translucent rounded-rect fill, so opening a drawer category looks like opening a folder rather
+     * than dropping a black card over the drawer.
+     */
+    private class BlurPanel extends LinearLayout {
+
+        private final GradientDrawable mPanelBackground = new GradientDrawable();
+
+        BlurPanel(Context context) {
+            super(context);
+            // Same fill the workspace folder uses (?attr/folderBackgroundColor at the folder's
+            // translucency) so the drawer category reads as a glass panel over the blurred drawer
+            // instead of an opaque black card. The corner radius matches the radius the blur helper
+            // clips its render node to, so fill and blur share one edge.
+            final float radius = Themes.getDialogCornerRadius(context);
+            mPanelBackground.setCornerRadius(radius);
+            mPanelBackground.setColor(Themes.getAttrColor(context, R.attr.folderBackgroundColor));
+            mPanelBackground.setAlpha(PANEL_ALPHA);
+            // Drawn by hand in dispatchDraw (below), not set as the View background: the blur has to
+            // land *under* the fill, and a View background is always painted before dispatchDraw.
+            setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
+                }
+            });
+            setClipToOutline(true);
+        }
+
+        @Override
+        protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            mPanelBackground.setBounds(0, 0, w, h);
+        }
+
+        @Override
+        protected void dispatchDraw(Canvas canvas) {
+            mBlurBackgroundHelper.drawFolderBlur(canvas, null, this);
+            mPanelBackground.draw(canvas);
+            super.dispatchDraw(canvas);
+        }
     }
 
     private void populate(FolderIcon tile) {
@@ -105,20 +166,15 @@ public class CaddyCategoryView extends AbstractFloatingView {
         setScrimAlpha(0);
 
         // The category panel (frosted rounded square, matching the tile).
-        mPanel = new LinearLayout(context);
+        mPanel = new BlurPanel(context);
         mPanel.setOrientation(VERTICAL);
-        GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setCornerRadius(dp(PANEL_RADIUS_DP));
-        panelBg.setColor(Color.argb(0xF2, 0x1c, 0x1c, 0x1e)); // opaque dark panel; themable later
-        mPanel.setBackground(panelBg);
         int pad = dp(16);
         mPanel.setPadding(pad, pad, pad, pad);
-        mPanel.setClipToOutline(true);
 
         // Title.
         TextView title = new TextView(context);
         title.setText(info != null ? info.title : "");
-        title.setTextColor(Color.WHITE);
+        title.setTextColor(Themes.getAttrColor(context, R.attr.folderTextColor));
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         title.setPadding(dp(4), dp(4), dp(4), dp(12));
         mPanel.addView(title, new LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT));
@@ -209,6 +265,8 @@ public class CaddyCategoryView extends AbstractFloatingView {
 
     private void closeComplete() {
         mIsOpen = false;
+        // Release the backdrop snapshot / cross-window blur drawable, same as Folder#closeComplete.
+        mBlurBackgroundHelper.folderCloseComplete();
         if (getParent() instanceof ViewGroup parent) {
             parent.removeView(this);
         }

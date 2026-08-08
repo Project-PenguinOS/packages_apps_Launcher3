@@ -261,9 +261,9 @@ constructor(@ApplicationContext private val encryptedContext: Context) {
                 DefaultsValueProvider.get(context).enableTwoLineToggle
             }
 
-        // Caddy: auto-categorize the app drawer into big iOS-style category folders. Off by default.
+        // Caddy: auto-categorize the app drawer into big iOS-style category folders.
         @JvmField
-        val DRAWER_CADDY = backedUpItem("pref_drawer_caddy", false)
+        val DRAWER_CADDY = backedUpItem("pref_drawer_caddy", true)
 
         @JvmField
         val PROMISE_ICON_IDS = nonRestorableItem(InstallSessionHelper.PROMISE_ICON_IDS, "")

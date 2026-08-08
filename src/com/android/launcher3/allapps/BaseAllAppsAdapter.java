@@ -276,17 +276,25 @@ public abstract class BaseAllAppsAdapter
             case VIEW_TYPE_BOTTOM_VIEW_TO_SCROLL_TO:
                 return new ViewHolder(new View(mActivityContext.asContext()));
             case VIEW_TYPE_FOLDER: {
-                // Caddy: an auto-categorized folder rendered as a big iOS-style tile. It spans two
-                // grid columns (see GridSpanSizer) and stands two rows tall so the 2x2 preview is
-                // large. The FolderIcon is inflated/attached on bind.
-                FrameLayout tile = new FrameLayout(parent.getContext());
-                int tileHeight = 2 * mActivityContext.getDeviceProfile()
-                        .getAllAppsProfile().getCellHeightPx();
+                // Caddy: an auto-categorized folder rendered as a big iOS-style tile. It takes half
+                // the grid width (see GridSpanSizer) so two sit side by side, and is square: the
+                // preview inside is a 2x2 arrangement, so a tile sized off the icon-row height
+                // instead came out wider than it is tall and the cluster floated in dead space.
+                // The FolderIcon is inflated/attached on bind.
+                FrameLayout tile = new FrameLayout(parent.getContext()) {
+                    @Override
+                    protected void onMeasure(int widthSpec, int heightSpec) {
+                        super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(
+                                MeasureSpec.getSize(widthSpec), MeasureSpec.EXACTLY));
+                    }
+                };
                 tile.setLayoutParams(new RecyclerView.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, tileHeight));
-                // Inset each tile so adjacent Caddy folders have a visible gap (they were touching).
-                int tilePad = Math.round(
-                        10 * parent.getResources().getDisplayMetrics().density);
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT));
+                // Inset each tile by half the gap we want between them, so the gap down the middle
+                // of the row matches the recycler's own left/right margin at the screen edges.
+                int tilePad = mActivityContext.getDeviceProfile()
+                        .getAllAppsProfile().getLeftRightMargin() / 2;
                 tile.setPadding(tilePad, tilePad, tilePad, tilePad);
                 return new ViewHolder(tile);
             }
@@ -385,18 +393,21 @@ public abstract class BaseAllAppsAdapter
                 ViewGroup container = (ViewGroup) holder.itemView;
                 container.removeAllViews();
                 if (folderInfo != null) {
-                    FolderIcon folderIcon = FolderIcon.inflateFolderAndIcon(
+                    // inflateIcon, not inflateFolderAndIcon: a drawer category must not get a
+                    // workspace Folder. Folder#bind writes the folder's items to the database and
+                    // posts replaceFolderWithFinalItem() for any folder holding <= 1 item, which
+                    // re-adds that item to a CellLayout -- a drawer FolderInfo is transient and has
+                    // no container/screen, so getCellLayout() returns null and the re-add crashed.
+                    // The tile only needs the icon; the tap opens CaddyCategoryView.
+                    FolderIcon folderIcon = FolderIcon.inflateIcon(
                             R.layout.all_apps_big_folder_icon,
                             ActivityContext.lookupContext(container.getContext()),
                             container, folderInfo);
                     container.addView(folderIcon, new FrameLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT));
-                    // Open the in-drawer category page from the tile itself: FolderIcon touches pass
-                    // through inside the RecyclerView (see FolderIcon.onTouchEvent), so the reliable
-                    // click target is this tile container.
-                    container.setOnClickListener(v ->
-                            com.android.launcher3.allapps.CaddyCategoryView.show(folderIcon));
+                    // The tap is handled by the FolderIcon itself (see FolderIcon#inflateIcon, which
+                    // gives forceBigPreview icons a CaddyCategoryView click listener).
                 }
                 break;
             }

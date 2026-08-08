@@ -21,6 +21,7 @@ import static com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_I
 import static com.android.launcher3.icons.BitmapInfo.FLAG_THEMED;
 import static com.android.launcher3.model.data.FolderInfo.BIG_FOLDER_LARGE_ICON_COUNT;
 
+import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -31,6 +32,7 @@ import android.graphics.drawable.Drawable;
 import androidx.annotation.Nullable;
 
 import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
@@ -52,14 +54,25 @@ public class LargeFolderPreview {
 
     // Fraction of the available (above-label) area used by the square preview.
     private static final float PREVIEW_SIZE_FRACTION = 0.94f;
+    // Hard cap on the preview side, in dp, for *workspace* folders only. A workspace big folder
+    // spans 2x2 grid cells, so sizing it only off the cell made the same folder visibly bigger on
+    // a 4x4 grid (~170dp) than on a 5x5 (~136dp). Icon size is no use as a reference because it
+    // scales with the grid too. 136dp is what the 5x5 grid already produced, so that grid is
+    // unchanged and the roomier ones come down to match it.
+    private static final float MAX_PREVIEW_SIZE_DP = 136f;
     // Gap between the four quadrants, as a fraction of the preview side.
     private static final float QUADRANT_GAP_FRACTION = 0.06f;
     // Large icon size within its quadrant.
     private static final float LARGE_ICON_FRACTION = 0.96f;
-    // Mini icon size within the cluster quadrant sub-grid.
-    private static final float CLUSTER_ICON_FRACTION = 0.9f;
-    // Gap between mini icons in the cluster, as a fraction of the quadrant side.
-    private static final float CLUSTER_GAP_FRACTION = 0.08f;
+    // Mini icon size, as a fraction of the quadrant side. Together with the spacing below this
+    // makes the 2x2 mini block a centred island inside its quadrant rather than something that
+    // fills it: measured against the reference launcher, the large icon is ~2.9x a mini icon and
+    // the gap between minis is ~0.47x a mini. Sizing the minis off the quadrant directly (a half
+    // quadrant each, less a hairline gap) made them ~2.3x, so they read as too big and sat on a
+    // different rhythm from the large icons beside them.
+    private static final float CLUSTER_ICON_FRACTION = 0.33f;
+    // Centre-to-centre distance between adjacent mini icons, as a fraction of the quadrant side.
+    private static final float CLUSTER_SPACING_FRACTION = 0.485f;
 
     // Aurora burnt-orange accent, used for the drag-over "drop here" ring.
     private static final int ACCENT = 0xFFC8783E;
@@ -92,20 +105,39 @@ public class LargeFolderPreview {
     // True while an app is being dragged over this folder, to show the accept highlight.
     private boolean mAccepting;
 
+    /** Corner radius of the frosted tile panel, as a fraction of the panel width. */
+    public static final float PANEL_RADIUS_FRACTION = 0.16f;
+
+    /**
+     * Frosted-glass fill of the big-folder tile: a translucent light panel over the wallpaper. Cheap
+     * (no RenderEffect), so it never introduces lag. Exposed so the open folder can paint the same
+     * surface -- the open folder used to be an opaque themed panel, which read as a different
+     * background from the tile it expanded out of.
+     */
+    public static int getPanelColor(Context context) {
+        return isNight(context) ? 0x30FFFFFF : 0x3AFFFFFF;
+    }
+
+    /** Hairline outline of the frosted tile panel. See {@link #getPanelColor}. */
+    public static int getPanelStrokeColor(Context context) {
+        return isNight(context) ? 0x22FFFFFF : 0x26FFFFFF;
+    }
+
+    private static boolean isNight(Context context) {
+        return (context.getResources().getConfiguration().uiMode
+                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+    }
+
     public LargeFolderPreview(FolderIcon icon) {
         mIcon = icon;
         mDensity = icon.getResources().getDisplayMetrics().density;
         for (int i = 0; i < mLargeRects.length; i++) {
             mLargeRects[i] = new Rect();
         }
-        final boolean night = (icon.getResources().getConfiguration().uiMode
-                & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
-        // Frosted-glass look: a translucent light panel over the aurora. Cheap (no RenderEffect),
-        // so it never introduces lag.
-        mPanelPaint.setColor(night ? 0x30FFFFFF : 0x3AFFFFFF);
+        mPanelPaint.setColor(getPanelColor(icon.getContext()));
         mPanelStrokePaint.setStyle(Paint.Style.STROKE);
         mPanelStrokePaint.setStrokeWidth(mDensity);
-        mPanelStrokePaint.setColor(night ? 0x22FFFFFF : 0x26FFFFFF);
+        mPanelStrokePaint.setColor(getPanelStrokeColor(icon.getContext()));
         // Drag-over highlight: brighter fill + accent ring.
         mAcceptFillPaint.setColor(0x33FFFFFF);
         mAcceptStrokePaint.setStyle(Paint.Style.STROKE);
@@ -143,7 +175,15 @@ public class LargeFolderPreview {
     @Nullable
     private Drawable newIcon(ItemInfo item) {
         if (item instanceof WorkspaceItemInfo wii) {
-            return wii.newIcon(mIcon.getContext(), FLAG_THEMED);
+            // Only ask for a themed (mono) icon when icon theming is actually on. Passing
+            // FLAG_THEMED unconditionally made the drawer's category tiles draw mono icons even
+            // with "Nothing OS icons" off: newIcon() strips the flag when the global theme is
+            // disabled, but ThemeManager also force-enables mono while the NOS setting is on, so
+            // the two states could not be told apart from here. BubbleTextView gates the same flag
+            // on shouldUseTheme(); this is the drawing-side equivalent.
+            int flags = ThemeManager.INSTANCE.get(mIcon.getContext()).isIconThemeEnabled()
+                    ? FLAG_THEMED : 0;
+            return wii.newIcon(mIcon.getContext(), flags);
         }
         return null;
     }
@@ -188,6 +228,14 @@ public class LargeFolderPreview {
     public int updateGeometry(int width, int height, int top, int labelHeight) {
         int availableHeight = height - top - labelHeight;
         int side = Math.round(Math.min(width, availableHeight) * PREVIEW_SIZE_FRACTION);
+        // See MAX_PREVIEW_SIZE_DP: keeps the tile the same size on every workspace grid. Min()
+        // means the cap can only ever shrink the preview, never push it outside a tighter cell.
+        // Drawer category tiles (forceBigPreview) are excluded: their tile is already sized off
+        // the drawer's own half-row width, which does not vary with the workspace grid, so the
+        // cap only made them smaller for no reason.
+        if (!mIcon.mInfo.forceBigPreview) {
+            side = Math.min(side, Math.round(MAX_PREVIEW_SIZE_DP * mDensity));
+        }
         if (side <= 0 || width <= 0) {
             mPreviewBottom = top;
             return mPreviewBottom;
@@ -265,16 +313,22 @@ public class LargeFolderPreview {
         if (mClusterDrawables.isEmpty()) {
             return;
         }
-        int gap = Math.round(quadrant.width() * CLUSTER_GAP_FRACTION);
-        int miniCell = (quadrant.width() - gap) / 2;
-        int[] mx = {quadrant.left, quadrant.left + miniCell + gap,
-                quadrant.left, quadrant.left + miniCell + gap};
-        int[] my = {quadrant.top, quadrant.top,
-                quadrant.top + miniCell + gap, quadrant.top + miniCell + gap};
+        // Lay the minis out from their centres so the block stays centred in the quadrant however
+        // the two fractions are tuned, and so the icons line up with the large ones on the row
+        // above: the whole cluster is one spacing wide, centred on the quadrant centre.
+        int side = quadrant.width();
+        int spacing = Math.round(side * CLUSTER_SPACING_FRACTION);
+        int mini = Math.round(side * CLUSTER_ICON_FRACTION);
+        int cx = quadrant.centerX();
+        int cy = quadrant.centerY();
+        int[] centreX = {cx - spacing / 2, cx + spacing / 2, cx - spacing / 2, cx + spacing / 2};
+        int[] centreY = {cy - spacing / 2, cy - spacing / 2, cy + spacing / 2, cy + spacing / 2};
         int count = Math.min(mClusterDrawables.size(), 4);
         for (int i = 0; i < count; i++) {
-            mTmpRect.set(mx[i], my[i], mx[i] + miniCell, my[i] + miniCell);
-            drawCentered(canvas, mClusterDrawables.get(i), mTmpRect, CLUSTER_ICON_FRACTION);
+            mTmpRect.set(centreX[i] - mini / 2, centreY[i] - mini / 2,
+                    centreX[i] + mini / 2, centreY[i] + mini / 2);
+            // Fraction 1f: mTmpRect is already the exact icon box.
+            drawCentered(canvas, mClusterDrawables.get(i), mTmpRect, 1f);
         }
     }
 

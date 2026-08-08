@@ -27,8 +27,11 @@
     <!-- String representing the fragment class for settings activity.-->
     <string name="settings_fragment_name" translatable="false">com.android.launcher3.settings.SettingsActivity$LauncherSettingsFragment</string>
 
-    <!-- String representing the fallback search package name.-->
-    <string name="fallback_search_package_name" translatable="false"></string>
+    <!-- String representing the fallback search package name. Used when the system reports no
+         global search activity, which is what left the hotseat search bar (QSB) empty: with no
+         package, OSEManager resolves a null provider and OseWidgetManager dispatches null views,
+         so Hotseat lays out a 0-height widget and nothing is drawn. Velvet ships in this build. -->
+    <string name="fallback_search_package_name" translatable="false">com.google.android.googlequicksearchbox</string>
 
     <!-- AllApps & Launcher transitions -->
     <!-- The duration of the PagedView page snap animation -->
@@ -69,7 +72,12 @@
     <!-- Scalable Grid configuration -->
     <!-- This is a float because it is converted to dp later in DeviceProfile -->
     <dimen name="hotseat_bar_bottom_space_default">48</dimen>
-    <dimen name="hotseat_qsb_space_default">0</dimen>
+    <!-- Gap between the hotseat icon row and the search bar (QSB) below it. This has to be
+         non-zero: none of the phone grids (5_by_5 and friends) declare hotseatQsbSpace in
+         device_profiles.xml, so they all fall back to this value, and a 0 here left the dock icons
+         sitting directly on top of the search bar. 24 matches the A15 build, which spaced them
+         correctly. -->
+    <dimen name="hotseat_qsb_space_default">24</dimen>
 
     <!-- Whether to enable background preloading of task thumbnails. -->
     <bool name="config_enableTaskSnapshotPreloading">true</bool>
@@ -216,6 +224,11 @@
     <!-- Disables the full workspace blur and zoom effects behind surfaces like the "All apps" panel
          or the widget picker. -->
     <bool name="reduce_workspace_blur_usage">false</bool>
+
+    <!-- Alpha (0-255) applied to allAppsScrimColor behind the app drawer. Must stay below 255: an
+         opaque scrim hides the wallpaper and also switches the blur off entirely, because
+         BaseDepthControllerImpl#shouldBlur() bails out while ScrimView#isFullyOpaque(). -->
+    <integer name="config_allAppsScrimAlpha">178</integer>
 
     <!-- Home organizer -->
     <dimen name="home_organizer_background_blur_radius">30dp</dimen>

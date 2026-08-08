@@ -35,6 +35,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.util.FloatProperty;
 import android.util.Property;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -131,6 +132,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     PreviewBackground mBackground = new PreviewBackground(getContext());
     private boolean mBackgroundIsVisible = true;
+    // Opacity of the big (2x2) preview only, so the open/close animation can cross-fade the tile
+    // against the folder content instead of cutting between them. Ignored by normal folders.
+    private float mBigPreviewAlpha = 1f;
 
     FolderGridOrganizer mPreviewVerifier;
     final ClippedFolderIconLayoutRule mPreviewLayoutRule;
@@ -173,6 +177,20 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         public void set(FolderIcon folderIcon, Float value) {
             folderIcon.mDotScale = value;
             folderIcon.invalidate();
+        }
+    };
+
+    /** Fades the big (2x2) preview panel in/out; see {@link #setBigPreviewAlpha}. */
+    public static final FloatProperty<FolderIcon> BIG_PREVIEW_ALPHA
+            = new FloatProperty<FolderIcon>("bigPreviewAlpha") {
+        @Override
+        public Float get(FolderIcon folderIcon) {
+            return folderIcon.mBigPreviewAlpha;
+        }
+
+        @Override
+        public void setValue(FolderIcon folderIcon, float value) {
+            folderIcon.setBigPreviewAlpha(value);
         }
     };
 
@@ -243,7 +261,15 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                 + grid.getWorkspaceProfile().getIconDrawablePaddingPx();
 
         icon.setTag(folderInfo);
-        icon.setOnClickListener(activity.getItemOnClickListener());
+        if (folderInfo.forceBigPreview) {
+            // Caddy drawer category tiles are inflated without a workspace Folder (see
+            // BaseAllAppsAdapter), so the default item click handler -- which calls animateOpen()
+            // on FolderIcon#getFolder() -- has nothing to open. Open the in-drawer category page.
+            icon.setOnClickListener(v ->
+                    com.android.launcher3.allapps.CaddyCategoryView.show((FolderIcon) v));
+        } else {
+            icon.setOnClickListener(activity.getItemOnClickListener());
+        }
         icon.setCustomActionsListener(WorkspaceItemCustomActionsListener.INSTANCE);
         icon.mInfo = folderInfo;
         icon.mActivity = activity;
@@ -298,15 +324,18 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     }
 
     private boolean willAcceptItem(ItemInfo item) {
-        return (willAcceptItemType(item.itemType) && item != mInfo && !mFolder.isOpen());
+        // Caddy drawer tiles are inflated without a Folder (see BaseAllAppsAdapter): they are not
+        // drop targets, so refuse everything rather than dereference a null Folder.
+        return mFolder != null
+                && (willAcceptItemType(item.itemType) && item != mInfo && !mFolder.isOpen());
     }
 
     public boolean acceptDrop(ItemInfo dragInfo) {
-        return !mFolder.isDestroyed() && willAcceptItem(dragInfo);
+        return mFolder != null && !mFolder.isDestroyed() && willAcceptItem(dragInfo);
     }
 
     public void onDragEnter(ItemInfo dragInfo) {
-        if (mFolder.isDestroyed() || !willAcceptItem(dragInfo)) return;
+        if (mFolder == null || mFolder.isDestroyed() || !willAcceptItem(dragInfo)) return;
         CellLayoutLayoutParams lp = (CellLayoutLayoutParams) getLayoutParams();
         CellLayout cl = (CellLayout) getParent().getParent();
 
@@ -489,7 +518,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
         mInfo.setTitle(newTitle, mActivity.getModelWriter());
         onTitleChanged(mInfo.title);
-        mFolder.getFolderName().setText(mInfo.title);
+        if (mFolder != null) {
+            mFolder.getFolderName().setText(mInfo.title);
+        }
 
         // Logging for folder creation flow
         StatsLogManager.newInstance(getContext()).logger()
@@ -622,6 +653,20 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         return mBackgroundIsVisible;
     }
 
+    /**
+     * Sets the opacity of the big (2x2) preview panel. The open/close animation cross-fades this
+     * against the folder's own content: while the folder is open the tile underneath it is fully
+     * transparent, and it fades back in as the folder shrinks onto it. Without this the tile was
+     * drawn at full opacity beneath the translucent folder panel for the whole animation, so both
+     * were visible at once (double image).
+     */
+    public void setBigPreviewAlpha(float alpha) {
+        if (mBigPreviewAlpha != alpha) {
+            mBigPreviewAlpha = alpha;
+            invalidate();
+        }
+    }
+
     public PreviewBackground getFolderBackground() {
         return mBackground;
     }
@@ -644,7 +689,19 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         if (isBigFolder()) {
             // Big folders draw 3 large launchable icons + a mini-cluster instead of the small
             // clipped 2x2 preview. (Notification dot is intentionally omitted here for now.)
-            mLargeFolderPreview.draw(canvas);
+            if (mBigPreviewAlpha <= 0f) {
+                return;
+            }
+            if (mBigPreviewAlpha < 1f) {
+                // One layer for the whole panel: fading the paints and the icon drawables
+                // individually would let the icons show through the panel behind them.
+                int layer = canvas.saveLayerAlpha(0, 0, getWidth(), getHeight(),
+                        Math.round(mBigPreviewAlpha * 255));
+                mLargeFolderPreview.draw(canvas);
+                canvas.restoreToCount(layer);
+            } else {
+                mLargeFolderPreview.draw(canvas);
+            }
             return;
         }
 
@@ -688,9 +745,12 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (isBigFolder()) {
             // Big folders fill the 2x2 cell; skip the 1x1 vertical-centering and place the label
-            // just below the enlarged preview instead.
+            // just below the enlarged preview instead. The label is positioned *before* measuring so
+            // the child is measured with its final top margin (it is match_parent tall, so measuring
+            // it with a stale margin left it overhanging the tile and clipped away).
+            positionBigFolderLabel(MeasureSpec.getSize(widthMeasureSpec),
+                    MeasureSpec.getSize(heightMeasureSpec));
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            positionBigFolderLabel();
             return;
         }
         boolean shouldCenterIcon = mActivity.getDeviceProfile().getWorkspaceProfile()
@@ -710,13 +770,11 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
      * Places the folder label just below the enlarged preview of a big folder. Only adjusts the
      * child's top margin in place (no requestLayout), so it is safe to call from onMeasure.
      */
-    private void positionBigFolderLabel() {
+    private void positionBigFolderLabel(int width, int height) {
         int previewBottom = mLargeFolderPreview.updateGeometry(
-                getMeasuredWidth(), getMeasuredHeight(), getPaddingTop(),
-                getBigFolderLabelHeight());
-        int gap = Math.round(4 * getResources().getDisplayMetrics().density);
+                width, height, getPaddingTop(), getBigFolderLabelHeight());
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mFolderName.getLayoutParams();
-        lp.topMargin = previewBottom + gap;
+        lp.topMargin = previewBottom + getBigFolderLabelGap();
     }
 
     /** Sets the visibility of the icon's title text */
@@ -786,14 +844,29 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         return ordered;
     }
 
-    /** Height reserved for the folder label below a big folder's preview (0 if hidden). */
+    /**
+     * Height reserved below a big folder's preview for its label, including the gap above the text
+     * (0 if the label is hidden).
+     *
+     * <p>This is derived from the text's own line height on purpose. It must not use
+     * {@code mFolderName.getMeasuredHeight()}: the label view is {@code layout_height="match_parent"}
+     * (see folder_icon.xml), so its measured height is the whole tile below its top margin. Feeding
+     * that back in as "label height" left almost no room for the preview, so the big tile drew as a
+     * sliver until repeated layout passes crept it larger, and the label itself landed underneath the
+     * frosted panel instead of below it.
+     */
     int getBigFolderLabelHeight() {
         if (mFolderName == null || mFolderName.getVisibility() == GONE) {
             return 0;
         }
-        int measured = mFolderName.getMeasuredHeight();
-        // Before the first measure pass, fall back to an estimate from the text size.
-        return measured > 0 ? measured : Math.round(mFolderName.getTextSize() * 1.4f);
+        Paint.FontMetrics fm = mFolderName.getPaint().getFontMetrics();
+        return (int) Math.ceil(fm.bottom - fm.top) + mFolderName.getPaddingTop()
+                + mFolderName.getPaddingBottom() + getBigFolderLabelGap();
+    }
+
+    /** Gap between a big folder's preview and the label below it. */
+    private int getBigFolderLabelGap() {
+        return Math.round(4 * getResources().getDisplayMetrics().density);
     }
 
     /**
@@ -904,12 +977,6 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (mInfo != null && mInfo.forceBigPreview) {
-            // Drawer ("caddy") category tiles live inside the all-apps RecyclerView. The FolderIcon's
-            // own touch handling doesn't reliably fire performClick there, so let the touch pass
-            // through and have the RecyclerView tile's OnClickListener open the category page.
-            return false;
-        }
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             // Remember whether the press landed on one of the big folder's large icons, so the
@@ -936,13 +1003,9 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
             ItemClickHandler.onClickAppShortcut(null, target, launcher);
             return true;
         }
-        // Caddy drawer folders open an in-drawer category page (CaddyCategoryView) that expands
-        // from this tile, instead of the workspace Folder (which animates against / drops to the
-        // home screen). A tap on a big launch icon above already launched that app.
-        if (mInfo != null && mInfo.forceBigPreview) {
-            com.android.launcher3.allapps.CaddyCategoryView.show(this);
-            return true;
-        }
+        // Caddy drawer folders open an in-drawer category page (CaddyCategoryView) instead of the
+        // workspace Folder; that is wired as this icon's OnClickListener in #inflateIcon, so just
+        // fall through to super.performClick() to invoke it.
         return super.performClick();
     }
 

@@ -42,6 +42,7 @@ import com.android.launcher3.folder.ClippedFolderIconLayoutRule.MAX_NUM_ITEMS_IN
 import com.android.launcher3.util.MultiPropertyFactory
 import com.android.launcher3.util.MultiPropertyFactory.*
 import com.android.launcher3.util.Themes
+import kotlin.math.max
 
 /** Holder for Animators created from [FolderAnimationSpringBuilderManager] */
 class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
@@ -61,6 +62,26 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         private const val STIFFNESS_LAUNCHER_SCRIM = 380f
         private const val DAMPING_LAUNCHER_SCRIM = 0.98f
         private const val WALLPAPER_ZOOM = 0.125f
+        // Window of the big-folder cross-fade, in ms. ObjectAnimators rather than springs, for the
+        // same reason the background color below is one: a spring's length falls out of its
+        // stiffness/damping and can't be set, so the two halves could not be held in step.
+        //
+        // The two images being cross-faded are structurally different -- the open folder is a grid
+        // of every app, the tile is 3 large icons plus a mini cluster -- so a short fade between
+        // them reads as a cut no matter where it is placed. Earlier attempts put a 60-95ms fade at
+        // the end, which is exactly that: the content sat at tile size for ~180ms and then flicked
+        // over in three frames. Instead the dissolve is long and covers most of the movement, so
+        // the change of layout happens while the panel is still travelling and the eye reads it as
+        // a morph rather than a swap.
+        //
+        // The end is pinned to the position springs, NOT to defaultDuration: those run on
+        // STIFFNESS_SHAPE_POSITION/DAMPING_SHAPE_POSITION and need ~411ms to fall under the
+        // visible-change threshold, about twice the 200ms nominal duration.
+        private const val BIG_FOLDER_TILE_FADE_DELAY = 110
+        private const val BIG_FOLDER_TILE_FADE_DURATION = 290
+        // Floor on how far a big folder's content scales down during the close. See the content
+        // scale animator in addFolderScaleAndTranslateAnimators().
+        private const val BIG_FOLDER_MIN_CONTENT_SCALE = 0.88f
 
         /**
          * Factory method to take data calculated from [FolderAnimationSpringBuilderManager], and
@@ -169,6 +190,16 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 property = LauncherAnimUtils.VIEW_TRANSLATE_Y,
                 view = folder,
             )
+            // A big folder cross-fades into its tile rather than physically collapsing into it, so
+            // the content must not shrink the whole way down to tile scale: doing that made the
+            // apps visibly shrink while they were fading, which reads as the icons "running away"
+            // at the end of the close. Keep the scale change subtle and let the fade carry the
+            // transition. Normal folders still collapse fully, which is what sells their preview
+            // items flying home.
+            val contentStartScale =
+                if (folder.folderIcon.isBigFolder)
+                    max(animationData.initialFolderScale, BIG_FOLDER_MIN_CONTENT_SCALE)
+                else animationData.initialFolderScale
             playSpringAnimation(
                 context = folder.context,
                 animatorSet = animatorSet,
@@ -176,7 +207,7 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 startDelay = 0,
                 stiffness = STIFFNESS_SHAPE_POSITION,
                 damping = DAMPING_SHAPE_POSITION,
-                startValue = animationData.initialFolderScale,
+                startValue = contentStartScale,
                 endValue = 1f,
                 minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,
                 property = getScaleProperty(),
@@ -261,8 +292,16 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 val folderBackground = folder.background as GradientDrawable
                 // Set up the Folder background.
                 val isOpening = animationData.isOpening
-                val initialColor = Themes.getAttrColor(context, R.attr.folderPreviewColor)
-                val finalColor = Themes.getAttrColor(context, R.attr.folderBackgroundColor)
+                // A big ("caddy") folder expands out of a frosted translucent tile, so the open
+                // folder paints that same surface; the themed folderBackgroundColor is an opaque
+                // panel, which read as a different background from the tile it grew from.
+                val bigFolder = folderIcon.isBigFolder
+                val initialColor =
+                    if (bigFolder) LargeFolderPreview.getPanelColor(context)
+                    else Themes.getAttrColor(context, R.attr.folderPreviewColor)
+                val finalColor =
+                    if (bigFolder) LargeFolderPreview.getPanelColor(context)
+                    else Themes.getAttrColor(context, R.attr.folderBackgroundColor)
                 folderBackground.mutate()
                 folderBackground.setColor(if (isOpening) initialColor else finalColor)
                 // TODO: convert to spring animation?
@@ -275,6 +314,58 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                         )
                         .apply { duration = animationData.defaultDuration.toLong() }
                 )
+
+                if (bigFolder) {
+                    // Cross-fade the folder's real content against the tile's big preview.
+                    //
+                    // A normal folder hides its icon for the whole animation and flies the small
+                    // clipped preview items between tile and grid, which bridges the two states. A
+                    // big folder has no such preview items, so with the icon hidden the only thing
+                    // moving is the content scaling between tile size and full size: on close it
+                    // shrank to a grid of tiny icons and the tile's real preview appeared in one
+                    // frame at closeComplete() -- the "renders small then snaps" pop.
+                    //
+                    // So the tile stays drawn for the whole animation (Folder owns its visibility)
+                    // and the two hand off with a cross-fade at the end of the close.
+                    //
+                    // The fade has to be on the *folder view*, not on its content: the tile is
+                    // painted by the workspace, underneath the folder. Fading only the content
+                    // left the folder's own glass panel covering the tile, so the tile fading in
+                    // behind it was invisible -- what showed was an empty panel for most of the
+                    // close and then the icons appearing in a single frame once closeComplete()
+                    // detached the folder. Fading the folder itself takes the panel with it, so
+                    // the tile is actually revealed.
+                    folder.alpha = if (isOpening) 0f else 1f
+                    folderIcon.setBigPreviewAlpha(if (isOpening) 1f else 0f)
+                    // Both sides of the cross-fade are ObjectAnimators so their windows line up
+                    // exactly. A spring's length falls out of its stiffness/damping and can't be
+                    // set, so the pair could not be kept in step.
+                    val fadeDelay = if (isOpening) 0L else BIG_FOLDER_TILE_FADE_DELAY.toLong()
+                    animatorSet.play(
+                        ObjectAnimator.ofFloat(
+                                folder,
+                                LauncherAnimUtils.VIEW_ALPHA,
+                                if (isOpening) 0f else 1f,
+                                if (isOpening) 1f else 0f,
+                            )
+                            .apply {
+                                startDelay = fadeDelay
+                                duration = BIG_FOLDER_TILE_FADE_DURATION.toLong()
+                            }
+                    )
+                    animatorSet.play(
+                        ObjectAnimator.ofFloat(
+                                folderIcon,
+                                FolderIcon.BIG_PREVIEW_ALPHA,
+                                if (isOpening) 1f else 0f,
+                                if (isOpening) 0f else 1f,
+                            )
+                            .apply {
+                                startDelay = fadeDelay
+                                duration = BIG_FOLDER_TILE_FADE_DURATION.toLong()
+                            }
+                    )
+                }
 
                 val footerAlphaDuration: Int
                 var footerStartDelay = 0

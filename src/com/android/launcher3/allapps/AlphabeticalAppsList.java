@@ -37,7 +37,6 @@ import androidx.annotation.VisibleForTesting;
 import androidx.recyclerview.widget.DiffUtil;
 
 import com.android.launcher3.Flags;
-import com.android.launcher3.LauncherPrefs;
 import com.android.launcher3.R;
 import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.model.data.AppInfo;
@@ -116,6 +115,8 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
     private int mNumAppsPerRowAllApps;
     private int mNumAppRowsInAdapter;
     private Predicate<ItemInfo> mItemFilter;
+    // See setCaddyEnabled().
+    private boolean mCaddyEnabled;
 
     public AlphabeticalAppsList(ActivityContext activityContext, @Nullable AllAppsStore appsStore,
             WorkProfileManager workProfileManager, PrivateProfileManager privateProfileManager) {
@@ -460,9 +461,23 @@ public class AlphabeticalAppsList implements AllAppsStore.OnUpdateListener {
         return position;
     }
 
+    /**
+     * Renders this list as auto-categorized big folder tiles instead of a flat A-Z list. Set per
+     * list rather than read from {@link com.android.launcher3.LauncherPrefs#DRAWER_CADDY}, so the
+     * drawer can show a flat "All" tab and a tiled "Categories" tab side by side; the pref gates
+     * whether the Categories tab exists at all.
+     */
+    public void setCaddyEnabled(boolean enabled) {
+        if (mCaddyEnabled == enabled) {
+            return;
+        }
+        mCaddyEnabled = enabled;
+        onAppsUpdated();
+    }
+
     /** Whether the app drawer should show auto-categorized big folders ("Caddy" mode). */
     private boolean isCaddyEnabled() {
-        return LauncherPrefs.get(mActivityContext.asContext()).get(LauncherPrefs.DRAWER_CADDY);
+        return mCaddyEnabled;
     }
 
     /**
