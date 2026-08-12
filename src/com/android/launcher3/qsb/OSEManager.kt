@@ -72,9 +72,15 @@ class OSEManager(
     @VisibleForTesting var tracker: InstallSessionTracker? = null
 
     private val defaultSearchPackage =
-        (context.getSystemService(SearchManager::class.java)?.globalSearchActivity?.packageName
-                ?: context.resources.getString(R.string.fallback_search_package_name))
+        context.resources
+            .getString(R.string.fallback_search_package_name)
             .ifEmpty { null }
+            ?.takeIf { isPackageEnabled(it) }
+            ?: context
+                .getSystemService(SearchManager::class.java)
+                ?.globalSearchActivity
+                ?.packageName
+                ?.ifEmpty { null }
 
     /** Initialize with the current value to that there is no jump on reboot */
     private val mutableOSEInfoRef =
@@ -207,17 +213,15 @@ class OSEManager(
         )
 
     private fun isDefaultSearchPackageEnabled(): Boolean {
+        return defaultSearchPackage?.let { isPackageEnabled(it) } ?: false
+    }
+
+    private fun isPackageEnabled(pkg: String): Boolean {
         return try {
-            defaultSearchPackage?.let {
-                context
-                    .getSystemService(LauncherApps::class.java)
-                    ?.getApplicationInfo(
-                        it,
-                        PackageManager.MATCH_UNINSTALLED_PACKAGES,
-                        myUserHandle(),
-                    )
-                    ?.enabled
-            } ?: false
+            context
+                .getSystemService(LauncherApps::class.java)
+                ?.getApplicationInfo(pkg, PackageManager.MATCH_UNINSTALLED_PACKAGES, myUserHandle())
+                ?.enabled ?: false
         } catch (e: NameNotFoundException) {
             false
         }

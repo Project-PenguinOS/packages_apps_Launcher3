@@ -49,6 +49,7 @@ import com.android.launcher3.Utilities;
 import com.android.launcher3.util.Themes;
 import com.android.launcher3.dragndrop.FolderAdaptiveIcon;
 import com.android.launcher3.graphics.PathWrapper;
+import com.android.launcher3.folder.LargeFolderPreview;
 import com.android.launcher3.graphics.ShapeDelegate;
 import com.android.launcher3.graphics.ThemeManager;
 
@@ -64,6 +65,9 @@ public class ClipIconView extends View implements ClipPathView {
     private static final Rect sTmpRectFG = new Rect();
 
     private final int mBlurSizeOutline;
+    private static final float BIG_FOLDER_RADIUS_RATIO =
+            LargeFolderPreview.PANEL_RADIUS_FRACTION * 2f;
+
     private final boolean mIsRtl;
 
     private @Nullable Drawable mForeground;
@@ -72,6 +76,7 @@ public class ClipIconView extends View implements ClipPathView {
 
     private boolean mIsAdaptiveIcon = false;
     private boolean mIsFolderIcon = false;
+    private boolean mIsBigFolderIcon = false;
 
     private ValueAnimator mRevealAnimator;
 
@@ -185,8 +190,10 @@ public class ClipIconView extends View implements ClipPathView {
                         shape = mCurrentShape;
                     } else {
                         final ThemeManager themeManager = ThemeManager.INSTANCE.get(getContext());
-                        shape = mIsFolderIcon ? themeManager.getFolderShape()
-                                : themeManager.getIconShape();
+                        shape = mIsBigFolderIcon
+                                ? new ShapeDelegate.RoundedSquare(BIG_FOLDER_RADIUS_RATIO)
+                                : mIsFolderIcon ? themeManager.getFolderShape()
+                                        : themeManager.getIconShape();
                     }
                     mRevealAnimator = shape.createRevealAnimator(this, mStartRevealRect,
                             mOutline, mTaskCornerRadius, !isOpening);
@@ -246,7 +253,11 @@ public class ClipIconView extends View implements ClipPathView {
         if (mIsAdaptiveIcon) {
             mIsFolderIcon = drawable instanceof FolderAdaptiveIcon;
             final ThemeManager themeManager = ThemeManager.INSTANCE.get(getContext());
-            if (mIsFolderIcon) {
+            mIsBigFolderIcon = mIsFolderIcon
+                    && ((FolderAdaptiveIcon) drawable).isBigFolder();
+            if (mIsBigFolderIcon) {
+                mCurrentShape = new ShapeDelegate.RoundedSquare(BIG_FOLDER_RADIUS_RATIO);
+            } else if (mIsFolderIcon) {
                 mCurrentShape = themeManager.getFolderShape();
             } else if (usingCustomShape) {
                 mCurrentShape = themeManager.getIconShape();
@@ -275,9 +286,10 @@ public class ClipIconView extends View implements ClipPathView {
             if (!mIsFolderIcon) {
                 mFinalDrawableBounds.inset(iconOffset - blurMargin, iconOffset - blurMargin);
             }
-           mRect.set(mFinalDrawableBounds);
- 	   if(Themes.isNosThemedIconsEnabled(getContext()))
-	       mRect.inset(mFinalDrawableBounds.width()/4, mFinalDrawableBounds.height()/4);
+            mRect.set(mFinalDrawableBounds);
+            if (!mIsFolderIcon && Themes.isNosThemedIconsEnabled(getContext())) {
+                mRect.inset(mFinalDrawableBounds.width() / 4, mFinalDrawableBounds.height() / 4);
+            }
 
             mForeground.setBounds(mRect);
             mBackground.setBounds(mFinalDrawableBounds);

@@ -62,9 +62,11 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
         private const val STIFFNESS_LAUNCHER_SCRIM = 380f
         private const val DAMPING_LAUNCHER_SCRIM = 0.98f
         private const val WALLPAPER_ZOOM = 0.125f
-        private const val BIG_FOLDER_TILE_FADE_DELAY = 110
-        private const val BIG_FOLDER_TILE_FADE_DURATION = 290
-        private const val BIG_FOLDER_MIN_CONTENT_SCALE = 0.88f
+        private const val BIG_FOLDER_TILE_FADE_DELAY = 0
+        private const val BIG_FOLDER_TILE_FADE_DURATION = 160
+        private const val BIG_FOLDER_MIN_CONTENT_SCALE = 0.80f
+        private const val STIFFNESS_BIG_FOLDER_CONTENT_SCALE = 1600f
+        private const val DAMPING_BIG_FOLDER_CONTENT_SCALE = 0.95f
 
         /**
          * Factory method to take data calculated from [FolderAnimationSpringBuilderManager], and
@@ -147,13 +149,18 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
             animationData: FolderAnimationData,
         ) {
             val isOpening = animationData.isOpening
+            val bigFolder = folder.folderIcon.isBigFolder
+            val positionStiffness =
+                if (bigFolder) STIFFNESS_BIG_FOLDER_CONTENT_SCALE else STIFFNESS_SHAPE_POSITION
+            val positionDamping =
+                if (bigFolder) DAMPING_BIG_FOLDER_CONTENT_SCALE else DAMPING_SHAPE_POSITION
             playSpringAnimation(
                 context = folder.context,
                 animatorSet = animatorSet,
                 isOpening = isOpening,
                 startDelay = 0,
-                stiffness = STIFFNESS_SHAPE_POSITION,
-                damping = DAMPING_SHAPE_POSITION,
+                stiffness = positionStiffness,
+                damping = positionDamping,
                 startValue = animationData.xDistance,
                 endValue = 0f,
                 minVisibleChange = MIN_VISIBLE_CHANGE_PIXELS,
@@ -165,8 +172,8 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 animatorSet = animatorSet,
                 isOpening = isOpening,
                 startDelay = 0,
-                stiffness = STIFFNESS_SHAPE_POSITION,
-                damping = DAMPING_SHAPE_POSITION,
+                stiffness = positionStiffness,
+                damping = positionDamping,
                 startValue = animationData.yDistance,
                 endValue = 0f,
                 minVisibleChange = MIN_VISIBLE_CHANGE_PIXELS,
@@ -182,8 +189,12 @@ class FolderSpringAnimatorSet(val animatorSet: AnimatorSet) {
                 animatorSet = animatorSet,
                 isOpening = isOpening,
                 startDelay = 0,
-                stiffness = STIFFNESS_SHAPE_POSITION,
-                damping = DAMPING_SHAPE_POSITION,
+                stiffness =
+                    if (bigFolder) STIFFNESS_BIG_FOLDER_CONTENT_SCALE
+                    else STIFFNESS_SHAPE_POSITION,
+                damping =
+                    if (bigFolder) DAMPING_BIG_FOLDER_CONTENT_SCALE
+                    else DAMPING_SHAPE_POSITION,
                 startValue = contentStartScale,
                 endValue = 1f,
                 minVisibleChange = MIN_VISIBLE_CHANGE_SCALE,

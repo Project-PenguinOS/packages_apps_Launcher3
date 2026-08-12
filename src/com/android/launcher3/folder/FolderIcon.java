@@ -288,6 +288,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         return mFolderName;
     }
 
+    public LargeFolderPreview getLargeFolderPreview() {
+        return mLargeFolderPreview;
+    }
+
     public void getPreviewBounds(Rect outBounds) {
         if (isBigFolder()) {
             mLargeFolderPreview.getPreviewRect(outBounds);
