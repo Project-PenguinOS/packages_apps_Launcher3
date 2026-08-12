@@ -111,6 +111,8 @@ public class InvariantDeviceProfile {
 
     private static final float ICON_SIZE_DEFINED_IN_APP_DP = 48;
 
+    private static final float NOS_ICON_SCALE = 1.15f;
+
     // Constants that affects the interpolation curve between statically defined device profile
     // buckets.
     private static final float KNEARESTNEIGHBOR = 3;
@@ -414,14 +416,7 @@ public class InvariantDeviceProfile {
 
         inlineNavButtonsEndSpacing = closestProfile.inlineNavButtonsEndSpacing;
 
-        iconSize = displayOption.iconSizes;
-        if (Themes.isNosThemedIconsEnabled(context)) {
-            final float nosScale = 1.15f;
-            iconSize = Arrays.copyOf(iconSize, iconSize.length);
-            for (int i = 0; i < iconSize.length; i++) {
-                iconSize[i] *= nosScale;
-            }
-        }
+        iconSize = scaledForNosIcons(context, displayOption.iconSizes);
         float maxIconSize = iconSize[0];
         for (int i = 1; i < iconSize.length; i++) {
             maxIconSize = Math.max(maxIconSize, iconSize[i]);
@@ -454,7 +449,7 @@ public class InvariantDeviceProfile {
 
         allAppsCellSize = displayOption.allAppsCellSize;
         allAppsBorderSpaces = displayOption.allAppsBorderSpaces;
-        allAppsIconSize = displayOption.allAppsIconSizes;
+        allAppsIconSize = scaledForNosIcons(context, displayOption.allAppsIconSizes);
         allAppsIconTextSize = displayOption.allAppsIconTextSizes;
 
         inlineQsb = closestProfile.inlineQsb;
@@ -655,6 +650,17 @@ public class InvariantDeviceProfile {
         } catch (Resources.NotFoundException ex) {
             Log.e(TAG, "Invalid Partner grid resource!", ex);
         }
+    }
+
+    private static float[] scaledForNosIcons(Context context, float[] sizes) {
+        if (!Themes.isNosThemedIconsEnabled(context)) {
+            return sizes;
+        }
+        float[] scaled = Arrays.copyOf(sizes, sizes.length);
+        for (int i = 0; i < scaled.length; i++) {
+            scaled[i] *= NOS_ICON_SCALE;
+        }
+        return scaled;
     }
 
     private static float dist(float x0, float y0, float x1, float y1) {
