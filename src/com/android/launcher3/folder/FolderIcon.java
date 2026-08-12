@@ -298,6 +298,10 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
         return mFolderName;
     }
 
+    public LargeFolderPreview getLargeFolderPreview() {
+        return mLargeFolderPreview;
+    }
+
     public void getPreviewBounds(Rect outBounds) {
         if (isBigFolder()) {
             // Big folders occupy the whole 2x2 preview panel, not the small circular preview; using

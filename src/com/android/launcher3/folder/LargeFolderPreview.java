@@ -31,11 +31,14 @@ import android.graphics.drawable.Drawable;
 
 import androidx.annotation.Nullable;
 
+import com.android.launcher3.DeviceProfile;
 import com.android.launcher3.LauncherAppState;
+import com.android.launcher3.allapps.AllAppsGridAdapter;
 import com.android.launcher3.graphics.ThemeManager;
 import com.android.launcher3.model.data.ItemInfo;
 import com.android.launcher3.model.data.ItemInfoWithIcon;
 import com.android.launcher3.model.data.WorkspaceItemInfo;
+import com.android.launcher3.views.ActivityContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -172,6 +175,16 @@ public class LargeFolderPreview {
         }
     }
 
+    private int drawerTileContentWidth() {
+        DeviceProfile dp = ActivityContext.lookupContext(mIcon.getContext()).getDeviceProfile();
+        if (dp == null) {
+            return 0;
+        }
+        int margin = dp.getAllAppsProfile().getLeftRightMargin();
+        int recyclerWidth = dp.getDeviceProperties().getAvailableWidthPx() - (2 * margin);
+        return Math.max(0, (recyclerWidth / AllAppsGridAdapter.FOLDERS_PER_ROW) - margin);
+    }
+
     @Nullable
     private Drawable newIcon(ItemInfo item) {
         if (item instanceof WorkspaceItemInfo wii) {
@@ -234,7 +247,11 @@ public class LargeFolderPreview {
         // the drawer's own half-row width, which does not vary with the workspace grid, so the
         // cap only made them smaller for no reason.
         if (!mIcon.mInfo.forceBigPreview) {
-            side = Math.min(side, Math.round(MAX_PREVIEW_SIZE_DP * mDensity));
+            int drawerSide = drawerTileContentWidth();
+            int cap = drawerSide > 0
+                    ? Math.round(drawerSide * PREVIEW_SIZE_FRACTION)
+                    : Math.round(MAX_PREVIEW_SIZE_DP * mDensity);
+            side = Math.min(side, cap);
         }
         if (side <= 0 || width <= 0) {
             mPreviewBottom = top;
