@@ -61,8 +61,9 @@ import com.android.launcher3.graphics.ThemeManager;
 public class ClipIconView extends View implements ClipPathView {
 
     private static final Rect sTmpRect = new Rect();
-    private static final Rect mRect = new Rect();
     private static final Rect sTmpRectFG = new Rect();
+
+    private final Rect mForegroundBounds = new Rect();
 
     private final int mBlurSizeOutline;
     private static final float BIG_FOLDER_RADIUS_RATIO =
@@ -216,7 +217,7 @@ public class ClipIconView extends View implements ClipPathView {
                     : (int) (((height * drawableScale) - height) / 2);
             int diffX = dp.getDeviceProperties().isLandscape() ? (int) (((width * drawableScale) - width) / 2)
                     : 0;
-            sTmpRectFG.set(mRect);
+            sTmpRectFG.set(mForegroundBounds);
 	    sTmpRect.set(mFinalDrawableBounds);
             sTmpRect.offset(diffX, diffY);
 	    sTmpRectFG.offset(diffX, diffY);
@@ -286,12 +287,13 @@ public class ClipIconView extends View implements ClipPathView {
             if (!mIsFolderIcon) {
                 mFinalDrawableBounds.inset(iconOffset - blurMargin, iconOffset - blurMargin);
             }
-            mRect.set(mFinalDrawableBounds);
+            mForegroundBounds.set(mFinalDrawableBounds);
             if (!mIsFolderIcon && Themes.isNosThemedIconsEnabled(getContext())) {
-                mRect.inset(mFinalDrawableBounds.width() / 4, mFinalDrawableBounds.height() / 4);
+                mForegroundBounds.inset(mFinalDrawableBounds.width() / 4,
+                        mFinalDrawableBounds.height() / 4);
             }
 
-            mForeground.setBounds(mRect);
+            mForeground.setBounds(mForegroundBounds);
             mBackground.setBounds(mFinalDrawableBounds);
 
             mStartRevealRect.set(0, 0, originalWidth, originalHeight);
