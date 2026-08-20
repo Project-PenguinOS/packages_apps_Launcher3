@@ -25,6 +25,7 @@ import static com.android.launcher3.allapps.SectionDecorationInfo.ROUND_TOP_RIGH
 import static com.android.launcher3.allapps.UserProfileManager.STATE_DISABLED;
 import static com.android.launcher3.allapps.UserProfileManager.STATE_ENABLED;
 
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -166,6 +167,17 @@ public abstract class BaseAllAppsAdapter
                         && java.util.Objects.equals(itemInfo.getTargetComponent(),
                                 other.itemInfo.getTargetComponent());
             }
+            if (viewType == VIEW_TYPE_FOLDER) {
+                // Caddy category tiles carry no itemInfo, so falling through to the blanket "true"
+                // below told DiffUtil every category was the same item as every other one. Adding a
+                // category then looked like an append no matter where it landed, the tiles before it
+                // were left holding the category that used to be at their position, and the drawer
+                // ended up showing the same category twice.
+                if (folderInfo == null || other.folderInfo == null) {
+                    return folderInfo == other.folderInfo;
+                }
+                return TextUtils.equals(folderInfo.title, other.folderInfo.title);
+            }
             return true;
         }
 
@@ -174,6 +186,12 @@ public abstract class BaseAllAppsAdapter
          * as well. Returning true will prevent redrawing of thee item.
          */
         public boolean isContentSame(AdapterItem other) {
+            if (viewType == VIEW_TYPE_FOLDER) {
+                // Drawer categories are rebuilt from scratch on every update, so the FolderInfo of
+                // the old item says nothing about what the new one holds. Always rebind them; there
+                // are only a handful of tiles.
+                return false;
+            }
             return itemInfo == null && other.itemInfo == null;
         }
 
