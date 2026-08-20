@@ -25,6 +25,7 @@ import static com.android.launcher3.allapps.SectionDecorationInfo.ROUND_TOP_RIGH
 import static com.android.launcher3.allapps.UserProfileManager.STATE_DISABLED;
 import static com.android.launcher3.allapps.UserProfileManager.STATE_ENABLED;
 
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -163,6 +164,12 @@ public abstract class BaseAllAppsAdapter
                         && java.util.Objects.equals(itemInfo.getTargetComponent(),
                                 other.itemInfo.getTargetComponent());
             }
+            if (viewType == VIEW_TYPE_FOLDER) {
+                if (folderInfo == null || other.folderInfo == null) {
+                    return folderInfo == other.folderInfo;
+                }
+                return TextUtils.equals(folderInfo.title, other.folderInfo.title);
+            }
             return true;
         }
 
@@ -171,6 +178,9 @@ public abstract class BaseAllAppsAdapter
          * as well. Returning true will prevent redrawing of thee item.
          */
         public boolean isContentSame(AdapterItem other) {
+            if (viewType == VIEW_TYPE_FOLDER) {
+                return false;
+            }
             return itemInfo == null && other.itemInfo == null;
         }
 
