@@ -44,11 +44,15 @@ import com.android.launcher3.organizer.creation.screen.ui.foldercreator.FolderCr
 import com.android.launcher3.popup.PopupCategory.SYSTEM_SHORTCUT
 import com.android.launcher3.testing.TestLogging
 import com.android.launcher3.testing.shared.TestProtocol
+import com.android.launcher3.util.PackageManagerHelper
 import com.android.launcher3.views.ActivityContext
 import com.android.launcher3.views.OptionsPopupView.OptionItem
 
 /** Class to create default set of long-press options. */
 object WorkspaceLongPressOptions {
+
+    private const val DEFAULT_WP_PKG = "com.android.wallpaper"
+    private const val GOOGLE_WP_PKG = "com.google.android.apps.wallpaper"
 
     @JvmStatic
     fun getAll(ctx: Context): List<PopupData> = buildList {
@@ -197,7 +201,8 @@ object WorkspaceLongPressOptions {
                 .putExtra(EXTRA_WALLPAPER_OFFSET, launcher.workspace.wallpaperOffsetForCenterPage)
                 .putExtra(EXTRA_WALLPAPER_LAUNCH_SOURCE, "app_launched_launcher")
                 .putExtra(EXTRA_WALLPAPER_FLAVOR, "focus_wallpaper")
-        val pickerPackage = launcher.getString(R.string.wallpaper_picker_package)
+        val isGoogleWpInstalled = PackageManagerHelper.isAppInstalled(v.context, GOOGLE_WP_PKG)
+        val pickerPackage = if (isGoogleWpInstalled) GOOGLE_WP_PKG else DEFAULT_WP_PKG
         if (!TextUtils.isEmpty(pickerPackage)) {
             intent.setPackage(pickerPackage)
         }
