@@ -194,4 +194,19 @@ public class PackageManagerHelper {
         return app1.getTargetPackage().equals(app2.getTargetPackage())
                 && app1.user.equals(app2.user);
     }
+
+    /**
+     * Returns true if the package is installed on the device.
+     */
+    public static boolean isAppInstalled(final Context context, final String packageName) {
+        if (context == null || TextUtils.isEmpty(packageName)) {
+            return false;
+        }
+        try {
+            context.getPackageManager().getPackageInfo(packageName, PackageManager.MATCH_ALL);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
 }
