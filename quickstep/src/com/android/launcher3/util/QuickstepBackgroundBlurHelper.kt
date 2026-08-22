@@ -145,6 +145,13 @@ constructor(
         val d = folderBlurDrawable ?: return
 
         d.setVisible(true, false)
+        // A blur region is composited by SurfaceFlinger, so the alpha the folder is drawn with
+        // never reaches it -- it has to be handed over. Closing a big folder fades the folder out
+        // over the last stretch of the animation while cross-fading the tile in, and the region sat
+        // at full strength through all of it: the panel thinned out and left a hard blurred
+        // rectangle standing on the wallpaper until folderCloseComplete() cut it. That is the
+        // flicker going from expanded back to preview.
+        d.alpha = Math.round(view.alpha * 255f)
         if (pathWrapper != null) {
             pathWrapper.bounds.roundOut(bounds)
             d.bounds = bounds
