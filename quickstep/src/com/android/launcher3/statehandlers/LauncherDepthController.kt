@@ -69,7 +69,10 @@ class LauncherDepthController(
                 " mCurrentBlur: $mCurrentBlur" +
                 " mLauncher.getDepthBlurTargets(): ${launcher.depthBlurTargets}",
         )
-        launcher.depthBlurTargets.forEach { it.setRenderEffect(blurEffect) }
+        launcher.depthBlurTargets.forEach {
+            it.setRenderEffect(blurEffect)
+            it.invalidate()
+        }
         return shouldBlurWorkspace
     }
 }

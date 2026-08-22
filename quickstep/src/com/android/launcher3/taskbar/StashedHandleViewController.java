@@ -432,7 +432,16 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
 
     @Override
     public boolean canNavHandleBeLongPressed() {
-        return isStashedHandleVisible();
+        return isStashedHandleVisible() || isHiddenOnlyByGestureHintSetting();
+    }
+
+    private boolean isHiddenOnlyByGestureHintSetting() {
+        TaskbarActivityContext activity = mActivityRef.get();
+        if (activity == null || !activity.isPhoneGestureNavMode() || mTaskbarHidden) {
+            return false;
+        }
+        return !com.android.launcher3.util.SettingsCache.INSTANCE.get(activity).getValue(
+                com.android.launcher3.util.SettingsCache.NAVIGATION_BAR_HINT_URI);
     }
 
     @Override
@@ -442,6 +451,7 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
 
     @Override
     public Rect getBoundsOnScreen() {
-        return mStashedHandleView.getSampledRegion();
+        Rect bounds = mStashedHandleView.getSampledRegion();
+        return (bounds == null || bounds.isEmpty()) ? null : bounds;
     }
 }
