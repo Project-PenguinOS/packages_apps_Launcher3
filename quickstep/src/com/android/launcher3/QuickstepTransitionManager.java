@@ -999,9 +999,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             FloatProp mDx = new FloatProp(0, prop.dX, DECELERATE_1_5);
             FloatProp mDy = new FloatProp(0, prop.dY, DECELERATE_1_5);
 
-            // Only the icon-grow scale gets the spring bounce -- the fluid morph feel.
             FloatProp mIconScaleToFitScreen = new FloatProp(prop.initialAppIconScale,
-                    prop.finalAppIconScale);
+                    prop.finalAppIconScale, DECELERATE_1_5);
             FloatProp mIconAlpha = new FloatProp(prop.iconAlphaStart, 0f,
                     clampToDuration(LINEAR, APP_LAUNCH_ALPHA_START_DELAY, APP_LAUNCH_ALPHA_DURATION,
                             APP_LAUNCH_DURATION));
@@ -1062,7 +1061,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                             DECELERATE_1_5);
                     mDy = new FloatProp(0, prop.dY, DECELERATE_1_5);
                     mIconScaleToFitScreen = new FloatProp(prop.initialAppIconScale,
-                            prop.finalAppIconScale);
+                            prop.finalAppIconScale, DECELERATE_1_5);
                     float interpolatedPercent = DECELERATE_1_5.getInterpolation(percent);
                     mCropRectHeight.value = Utilities.mapRange(interpolatedPercent,
                             prop.cropHeightStart, prop.cropHeightEnd);
