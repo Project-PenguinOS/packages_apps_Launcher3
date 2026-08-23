@@ -435,7 +435,29 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
 
     @Override
     public boolean canNavHandleBeLongPressed() {
-        return isStashedHandleVisible();
+        return isStashedHandleVisible() || isHiddenOnlyByGestureHintSetting();
+    }
+
+    /**
+     * Whether the handle is invisible purely because the user turned the gesture hint off.
+     *
+     * Turning the hint off drops this view to zero height and zero alpha (see the layout code
+     * above), and a zero alpha takes the view to INVISIBLE - so isStashedHandleVisible() goes
+     * false and the long press stops being watched for at all, taking Circle to Search with it.
+     * Hiding the hint is a cosmetic choice, though: the gesture area is still there, so the touch
+     * target should be too.
+     *
+     * Deliberately narrow. It stays false when the handle is hidden for a real reason - the
+     * taskbar being unstashed, or the system hiding the nav bar outright (mTaskbarHidden) - so
+     * only the cosmetic case gets the long press back.
+     */
+    private boolean isHiddenOnlyByGestureHintSetting() {
+        TaskbarActivityContext activity = mActivityRef.get();
+        if (activity == null || !activity.isPhoneGestureNavMode() || mTaskbarHidden) {
+            return false;
+        }
+        return !com.android.launcher3.util.SettingsCache.INSTANCE.get(activity).getValue(
+                com.android.launcher3.util.SettingsCache.NAVIGATION_BAR_HINT_URI);
     }
 
     @Override
@@ -445,6 +467,11 @@ public class StashedHandleViewController implements TaskbarControllers.LoggableT
 
     @Override
     public Rect getBoundsOnScreen() {
-        return mStashedHandleView.getSampledRegion();
+        Rect bounds = mStashedHandleView.getSampledRegion();
+        // With the gesture hint off the handle is laid out at zero height, so its sampled region
+        // collapses. Handing that to ContextualSearchConfig#setSourceBounds would start the
+        // Circle to Search animation from a degenerate rect; null is the interface's own default
+        // and lets it pick its origin instead.
+        return (bounds == null || bounds.isEmpty()) ? null : bounds;
     }
 }

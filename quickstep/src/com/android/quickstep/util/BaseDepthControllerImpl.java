@@ -119,6 +119,11 @@ public class BaseDepthControllerImpl<
      * Last blur value, in pixels, that was applied.
      */
     protected int mCurrentBlur;
+    // Avoids redundant WallpaperManager calls when zoom barely changed.
+    private float mLastAppliedWallpaperZoom = -1f;
+    // Null until the first transaction goes out, so that one is never skipped.
+    private Boolean mLastAppliedSurfaceOpaque = null;
+    private static final float WALLPAPER_ZOOM_DELTA_THRESHOLD = 0.01f;
     /**
      * If we requested early wake-up offsets to SurfaceFlinger.
      */
@@ -232,8 +237,13 @@ public class BaseDepthControllerImpl<
             wallpaperZoom = Math.max(wallpaperZoom, mWallpaperZoomOnly.value);
         }
 
-        if (windowToken != null) {
+        boolean isWallpaperZoomExtreme = wallpaperZoom == 0f || wallpaperZoom == 1f;
+        if (windowToken != null
+                && (isWallpaperZoomExtreme
+                        || Math.abs(wallpaperZoom - mLastAppliedWallpaperZoom)
+                                > WALLPAPER_ZOOM_DELTA_THRESHOLD)) {
             mWallpaperManager.setWallpaperZoomOut(windowToken, wallpaperZoom);
+            mLastAppliedWallpaperZoom = wallpaperZoom;
         }
 
         if (!BlurUtils.supportsBlursOnWindows()) {
@@ -267,9 +277,21 @@ public class BaseDepthControllerImpl<
             }
             return;
         }
+        // The skipSimilarBlur guard above requires both values to be non-zero, so the 0 -> 0 case
+        // falls straight through it: sitting still on the workspace built and scheduled a
+        // SurfaceControl transaction every frame that set the blur radius the surface already had,
+        // and logged a line for each one. Nothing to say means nothing to send.
+        if (newBlur == previousBlur && newBlur == 0 && !applyImmediately && surfaceTransaction == null
+                && Boolean.valueOf(isSurfaceOpaque).equals(mLastAppliedSurfaceOpaque)
+                && !mInEarlyWakeUp) {
+            return;
+        }
         mCurrentBlur = newBlur;
-        Log.v(TAG, "Applying blur: " + mCurrentBlur + " to " + blurSurface + " applyImmediately: "
-                + applyImmediately);
+        mLastAppliedSurfaceOpaque = isSurfaceOpaque;
+        if (DEBUG) {
+            Log.v(TAG, "Applying blur: " + mCurrentBlur + " to " + blurSurface
+                    + " applyImmediately: " + applyImmediately);
+        }
 
         if (surfaceTransaction == null) {
             surfaceTransaction = new SurfaceTransaction();
