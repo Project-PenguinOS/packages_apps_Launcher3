@@ -141,6 +141,10 @@ public class DeviceProfile {
     // Taskbar
     private TaskbarProfile mTaskbarProfile;
 
+    // Meminfo in overview
+    public int memInfoMarginGesturePx;
+    public int memInfoMarginThreeButtonPx;
+
     /** Used only as an alternative to mocking when null values cannot be used. */
     @VisibleForTesting
     public DeviceProfile() {
@@ -245,6 +249,11 @@ public class DeviceProfile {
         mAllAppsIconText = LauncherPrefs.SHOW_DRAWER_LABELS.get(context);
 
         overviewProfile = OverviewProfile.Factory.createOverviewProfile(res);
+
+        memInfoMarginGesturePx = res.getDimensionPixelSize(
+                R.dimen.meminfo_bottom_margin_gesture);
+        memInfoMarginThreeButtonPx = res.getDimensionPixelSize(
+                R.dimen.meminfo_bottom_margin_three_button);
 
         mMetrics = res.getDisplayMetrics();
 
@@ -440,15 +449,13 @@ public class DeviceProfile {
             mAllAppsProfile = getAllAppsProfile().copyWithCellHeightPx(cellHeight);
         }
 
-        if (LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE.get(context)
-                && mAllAppsIconText
-                && !(mIsResponsiveGrid && getAllAppsProfile().getMaxAllAppsTextLineCount() == 2)) {
-            // Add extra textHeight to the existing allAppsCellHeight.
-            mAllAppsProfile = getAllAppsProfile().copyWithCellHeightPx(
-                    (int) (getAllAppsProfile().getCellHeightPx()
-                            * mAllAppsCellHeightMultiplier)
-                            + Utilities.calculateTextHeight(getAllAppsProfile().getIconTextSizePx())
-            );
+        if (mAllAppsIconText) {
+            int cellHeight = (int) (getAllAppsProfile().getCellHeightPx() * mAllAppsCellHeightMultiplier);
+            if (LauncherPrefs.ENABLE_TWOLINE_ALLAPPS_TOGGLE.get(context)
+                    && !(mIsResponsiveGrid && getAllAppsProfile().getMaxAllAppsTextLineCount() == 2)) {
+                cellHeight += Utilities.calculateTextHeight(getAllAppsProfile().getIconTextSizePx());
+            }
+            mAllAppsProfile = getAllAppsProfile().copyWithCellHeightPx(cellHeight);
         }
 
         mBottomSheetProfile = BottomSheetProfile.Factory.createBottomSheetProfile(
