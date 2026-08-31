@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2023 Neoteric OS
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string-array name="quickspace_psa_morning">
+        <item>Good morning!</item>
+        <item>Good morning, time to shine!</item>
+        <item>What a beautiful day!</item>
+        <item>Have a fantastic day ahead!</item>
+        <item>Mornings are a fresh canvas for your daily masterpiece.</item>
+        <item>Embrace the sunrise of opportunity each morning.</item>
+        <item>Your day begins with endless possibilities.</item>
+        <item>Every sunrise is a reminder that you can start anew.</item>
+        <item>Awake with purpose, conquer the day ahead.</item>
+        <item>Your thoughts can be the foundation of great achievements.</item>
+        <item>The world awakens, and so does your potential.</item>
+        <item>The first chapter in today\'s adventure.</item>
+        <item>Let your morning routine be the launchpad for success.</item>
+        <item>It\'s time for fresh ideas and bold actions.</item>
+        <item>Find the courage to chase your aspirations.</item>
+        <item>Rise and shine, greatness awaits.</item>
+        <item>The best time to start is now.</item>
+        <item>Good morning! New day, new energy.</item>
+        <item>The world is waiting for your smile.</item>
+        <item>Today is a blank page. Make it count.</item>
+        <item>Rise like the sun — unstoppable and bright.</item>
+        <item>Breathe in courage, exhale doubt.</item>
+        <item>Make today so good that yesterday gets jealous.</item>
+        <item>Good morning, legend. Time to make things happen.</item>
+        <item>The morning sun doesn\'t ask permission to shine.</item>
+        <item>Start strong. Finish stronger.</item>
+        <item>Every morning is a fresh start.</item>
+        <item>Coffee in hand, goals in mind.</item>
+        <item>Be the reason someone smiles today.</item>
+        <item>Good morning! Hope you slept well.</item>
+        <item>Ready for another great day?</item>
+        <item>First step today: hydration and good vibes.</item>
+        <item>Smile, you\'ve got this!</item>
+        <item>Today is full of opportunities.</item>
+        <item>Stay positive, work smart, and be kind.</item>
+        <item>A cup of coffee and a heart full of hope.</item>
+        <item>Step outside and enjoy the fresh air.</item>
+        <item>Make today a masterpiece.</item>
+        <item>Focus on what brings you joy today.</item>
+        <item>A peaceful morning leads to a productive day.</item>
+        <item>Good morning! Believe in yourself today.</item>
+        <item>The secret of getting ahead is getting started.</item>
+        <item>Another day to learn, grow, and inspire.</item>
+    </string-array>
+    <string-array name="quickspace_psa_noon">
+        <item>Chase your dreams, not the minutes.</item>
+        <item>In every moment, a new opportunity.</item>
+        <item>Embrace the journey, not just the destination.</item>
+        <item>Today is a gift, that\'s why it\'s called the present.</item>
+        <item>Let your smile change the room.</item>
+        <item>Life is a story; make each chapter count.</item>
+        <item>Find joy in the ordinary moments.</item>
+        <item>The best is yet to come, keep going.</item>
+        <item>Seize the day, starting right now.</item>
+        <item>Happiness is a choice you can make any time.</item>
+        <item>Believe in yourself, even on a busy afternoon.</item>
+        <item>Let your actions speak louder than words.</item>
+        <item>Dream big, work hard, and stay humble.</item>
+        <item>You are stronger and capable than you think.</item>
+        <item>Every setback is a setup for a comeback.</item>
+        <item>Keep pushing. You\'re doing great.</item>
+        <item>Midday check-in: Remember to drink some water!</item>
+        <item>Progress over perfection, always.</item>
+        <item>One focused hour can change everything.</item>
+        <item>You\'re halfway through the day — finish strong!</item>
+        <item>Small consistent steps beat big occasional leaps.</item>
+        <item>Stay curious, stay inspired.</item>
+        <item>Your future self is cheering for you right now.</item>
+        <item>Keep moving. Momentum is magic.</item>
+        <item>Take a short breather. You\'ve earned it.</item>
+        <item>Don\'t wait for inspiration. Create it.</item>
+        <item>Lunch time! Treat yourself to something good.</item>
+        <item>Stretch a little, breathe, and reset.</item>
+        <item>Great work so far today!</item>
+        <item>Half the day conquered, half to go!</item>
+        <item>Stay focused on what truly matters.</item>
+        <item>A quick walk outside works wonders.</item>
+        <item>Energy check: Take a deep breath.</item>
+        <item>Keep your head high and your vibe positive.</item>
+        <item>You are making progress every single day.</item>
+    </string-array>
+    <string-array name="quickspace_psa_early_evening">
+        <item>Embrace the present moment, no matter the hour.</item>
+        <item>In every dusk, find a moment of peace.</item>
+        <item>Life is a journey; enjoy the scenery along the way.</item>
+        <item>Your attitude shapes your reality.</item>
+        <item>Capture the beauty in the simple moments.</item>
+        <item>It\'s time to reflect, relax, and reset.</item>
+        <item>Choose joy as the day winds down.</item>
+        <item>Be the reason someone smiled today.</item>
+        <item>Your potential knows no bounds.</item>
+        <item>Moments of peace can happen at any hour.</item>
+        <item>Stay curious, stay grateful.</item>
+        <item>Believe in yourself; you are doing great.</item>
+        <item>The day is winding down, celebrate your wins.</item>
+        <item>Reflect. Adjust. Keep going.</item>
+        <item>Evenings are for gratitude and peace of mind.</item>
+        <item>You showed up and gave your best today.</item>
+        <item>Let the sunset remind you of nature\'s beauty.</item>
+        <item>Rest is just as important as work.</item>
+        <item>Take a deep breath and let go of stress.</item>
+        <item>Tomorrow\'s success starts with tonight\'s peace.</item>
+        <item>Be proud of the efforts you made today.</item>
+        <item>Even small steps move you forward.</item>
+        <item>Wind down with a peaceful mind.</item>
+        <item>The golden hour looks good on you.</item>
+        <item>Time to wrap up and relax with family or friends.</item>
+        <item>Sunset colors, calm thoughts.</item>
+        <item>Take a moment to appreciate how far you\'ve come.</item>
+    </string-array>
+    <string-array name="quickspace_psa_evening">
+        <item>In the quiet of this evening, find serenity.</item>
+        <item>Let the night be your canvas; paint it with dreams.</item>
+        <item>In the stillness of the evening, find your inner peace.</item>
+        <item>Stars shine brightest when the sky is clear.</item>
+        <item>Dream big, even in the quiet hours.</item>
+        <item>It\'s time for reflection and renewal.</item>
+        <item>Find joy in the comfort of your home.</item>
+        <item>Stay hopeful, stay calm, stay peaceful.</item>
+        <item>In the midst of a busy world, find your calm.</item>
+        <item>Let the evening recharge your spirit.</item>
+        <item>Evenings are made for good food and cozy vibes.</item>
+        <item>The stars are out. Take a deep breath.</item>
+        <item>Peace begins the moment you slow down.</item>
+        <item>Tomorrow will take care of itself. Enjoy tonight.</item>
+        <item>End the day with gratitude, not worry.</item>
+        <item>Rest well tonight; you worked hard today.</item>
+        <item>Let go of today\'s stress. Tomorrow is brand new.</item>
+        <item>Cozy up with a good book or favorite track.</item>
+        <item>Don\'t forget to plug in your phone before bed.</item>
+        <item>Time to put away screens and unwind.</item>
+        <item>Have a peaceful and restful evening.</item>
+        <item>Night is here to bring rest and healing.</item>
+    </string-array>
+    <string-array name="quickspace_psa_midnight">
+        <item>Nights are the quiet whispers of calm.</item>
+        <item>In the stillness of the night, find inner strength.</item>
+        <item>The world sleeps, rest your mind and body.</item>
+        <item>Stay curious, dream peaceful dreams.</item>
+        <item>Great rest leads to great achievements.</item>
+        <item>You have the power to create a bright tomorrow.</item>
+        <item>Happiness is a choice; rest well tonight.</item>
+        <item>Stay focused, stay calm, and get some sleep.</item>
+        <item>You are the author of your own story.</item>
+        <item>Strive for balance and restful sleep.</item>
+        <item>Tomorrow is a fresh start waiting for you.</item>
+        <item>The quietest hours bring the clearest peace.</item>
+        <item>Creativity flourishes after good sleep.</item>
+        <item>Rest is productive too.</item>
+        <item>Even the moon takes its time to shine.</item>
+        <item>Put the thoughts on pause and drift to sleep.</item>
+        <item>Recharge your batteries for tomorrow\'s adventure.</item>
+        <item>Sweet dreams and peaceful rest.</item>
+        <item>Sleep well. Tomorrow awaits with new opportunities.</item>
+        <item>3 AM thought: You really should get some sleep!</item>
+    </string-array>
+    <string-array name="quickspace_psa_random">
+        <item>Make peace, spread kindness.</item>
+        <item>Oh hey! Hope you\'re having a great day.</item>
+        <item>How many photos did you take today?</item>
+        <item>Time for some good music!</item>
+        <item>Small steps lead to big impact.</item>
+        <item>Your potential is limitless.</item>
+        <item>Embrace challenges with a smile.</item>
+        <item>Believe in your journey.</item>
+        <item>Courage is the key to progress.</item>
+        <item>Seeds of success are planted in daily habits.</item>
+        <item>Believe in the possibility of the impossible.</item>
+        <item>Your attitude determines your altitude.</item>
+        <item>Do something nice for someone today.</item>
+        <item>Thank you for being awesome!</item>
+        <item>What\'s on your playlist today?</item>
+        <item>Remember to check your device\'s battery level!</item>
+        <item>Stay hydrated and take a quick break.</item>
+        <item>Life is better when you\'re laughing.</item>
+        <item>In the middle of difficulty lies opportunity.</item>
+        <item>Dream big, work smart, stay kind.</item>
+        <item>The only way to do great work is to love what you do.</item>
+        <item>Believe you can and you\'re halfway there.</item>
+        <item>Enjoy the little things today.</item>
+        <item>Take a deep breath and smile.</item>
+        <item>Keep your face towards the sunshine.</item>
+        <item>Every day holds a pleasant surprise.</item>
+        <item>Kindness is free, sprinkle it everywhere.</item>
+        <item>Keep going, you\'re doing amazing.</item>
+        <item>Work hard, stay humble, be curious.</item>
+        <item>Today is a good day to have a good day.</item>
+        <item>Find beauty in the everyday ordinary.</item>
+        <item>A smile is the best shortcut to happiness.</item>
+        <item>Focus on the good and the good gets better.</item>
+        <item>Creativity is intelligence having fun.</item>
+        <item>Wherever you go, bring your own sunshine.</item>
+        <item>Don\'t forget to stretch your legs!</item>
+        <item>Good vibes only.</item>
+        <item>Keep calm and carry on.</item>
+        <item>Music on, world off.</item>
+        <item>You are capable of amazing things.</item>
+        <item>Success is the sum of small efforts repeated daily.</item>
+        <item>Make today memorable for something good.</item>
+        <item>Stay curious and keep exploring.</item>
+        <item>Cherish every moment of today.</item>
+        <item>Bright days and good tunes ahead.</item>
+        <item>A gentle reminder: You are appreciated!</item>
+    </string-array>
+</resources>
