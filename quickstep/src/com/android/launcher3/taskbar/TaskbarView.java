@@ -484,7 +484,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
             @Override
             public int calculateDropIndexInContainer(int dropIndex, int hiddenChildIndex) {
                 int dropSpotOffset =
-                        mActivityContext.getDeviceProfile().getHotseatProfile().isQsbInline()
+                        (mQsb != null && indexOfChild(mQsb) != -1)
                                 ? 2 : 1;
                 int dividerIndex = indexOfChild(mTaskbarDividerContainer);
 
@@ -1646,7 +1646,7 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
         int count = getChildCount()
                 - numContainers
                 + numIconsInContainers;
-        if (mActivityContext.getDeviceProfile().getHotseatProfile().isQsbInline()) {
+        if (mQsb != null && indexOfChild(mQsb) != -1) {
             count--; // Exclude QSB
         }
         // count can be negative if views aren't added
@@ -1701,29 +1701,29 @@ public class TaskbarView extends FrameLayout implements FolderIcon.FolderIconPar
     public View[] getIconViews() {
         final int count = getChildCount();
         final int totalCount = getTotalNumberOfIcons();
-        if (totalCount == 0) {
+        if (totalCount == 0 && count == 0) {
             return new View[0];
         }
-        View[] icons = new View[totalCount];
-        int insertionPoint = 0;
+        List<View> icons = new ArrayList<>(totalCount > 0 ? totalCount : count);
         for (int i = 0; i < count; i++) {
-            if (getChildAt(i) == mQsb) continue;
-            if (getChildAt(i) instanceof TaskbarPinnedAppIconContainer tic) {
+            View child = getChildAt(i);
+            if (child == mQsb) continue;
+            if (child instanceof TaskbarPinnedAppIconContainer tic) {
                 int ticCount = tic.getChildCount();
                 if (mIsRtl) {
                     for (int j = ticCount - 1; j >= 0; j--) {
-                        icons[insertionPoint++] = tic.getChildAt(j);
+                        icons.add(tic.getChildAt(j));
                     }
                 } else {
                     for (int j = 0; j < ticCount; j++) {
-                        icons[insertionPoint++] = tic.getChildAt(j);
+                        icons.add(tic.getChildAt(j));
                     }
                 }
                 continue;
             }
-            icons[insertionPoint++] = getChildAt(i);
+            icons.add(child);
         }
-        return icons;
+        return icons.toArray(new View[0]);
     }
 
     protected int getNumOfVisibleIconsInPinnedSection() {
