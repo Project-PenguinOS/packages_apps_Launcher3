@@ -111,6 +111,14 @@ public class SettingsAppDrawer extends CollapsingToolbarBaseActivity
                 LauncherPrefs.ALL_APPS_DARK_TEXT.getSharedPrefKey().equals(key)) {
             LauncherAppState.INSTANCE.executeIfCreated(app -> app.setNeedsRestart());
         }
+        if (LauncherPrefs.DRAWER_LIST.getSharedPrefKey().equals(key)) {
+            try {
+                LauncherAppState appState = LauncherAppState.getInstance(this);
+                appState.getModel().rebindCallbacks("drawer-list-changed");
+            } catch (Exception e) {
+                LauncherAppState.INSTANCE.get(this).setNeedsRestart();
+            }
+        }
     }
 
     private boolean startPreference(String fragment, Bundle args, String key) {

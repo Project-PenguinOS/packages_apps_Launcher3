@@ -148,6 +148,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     public static final int DISPLAY_SEARCH_RESULT_SMALL = 7;
     public static final int DISPLAY_PREDICTION_ROW = 8;
     public static final int DISPLAY_SEARCH_RESULT_APP_ROW = 9;
+    private static final int DISPLAY_DRAWER_FOLDER = 10;
 
     private static final float MIN_LETTER_SPACING = -0.05f;
     private static final int MAX_SEARCH_LOOP_COUNT = 20;
@@ -348,8 +349,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
             defaultIconSize = mDeviceProfile.getWorkspaceProfile().getIconSizePx();
             setCenterVertically(mDeviceProfile.getWorkspaceProfile().getIconCenterVertically());
             mShouldShowLabel = SHOW_DESKTOP_LABELS.get(context);
-        } else if (mDisplay == DISPLAY_ALL_APPS || mDisplay == DISPLAY_PREDICTION_ROW
-                || mDisplay == DISPLAY_SEARCH_RESULT_APP_ROW) {
+        } else if (displayIsAppDrawer()) {
             setTextSize(TypedValue.COMPLEX_UNIT_PX,
                     mDeviceProfile.getAllAppsProfile().getIconTextSizePx());
             setCompoundDrawablePadding(
@@ -437,6 +437,13 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
         setAccessibilityDelegate(mActivity.getAccessibilityDelegate());
 
         setContainerTextVisibility(mDisplay != DISPLAY_TASKBAR);
+    }
+
+    private boolean displayIsAppDrawer() {
+        return mDisplay == DISPLAY_ALL_APPS
+                || mDisplay == DISPLAY_PREDICTION_ROW
+                || mDisplay == DISPLAY_SEARCH_RESULT_APP_ROW
+                || mDisplay == DISPLAY_DRAWER_FOLDER;
     }
 
     @Override
@@ -702,7 +709,7 @@ public class BubbleTextView extends TextView implements ItemInfoUpdateReceiver,
     protected boolean shouldUseTheme() {
         return mDisplay == DISPLAY_WORKSPACE || mDisplay == DISPLAY_FOLDER
                 || mDisplay == DISPLAY_TASKBAR
-                || (mThemeAllAppsIcons && mDisplay == DISPLAY_ALL_APPS);
+                || (mThemeAllAppsIcons && displayIsAppDrawer());
     }
 
     /**
