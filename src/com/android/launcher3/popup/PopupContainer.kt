@@ -143,7 +143,8 @@ open class PopupContainer<T : ActivityContext>(
         } else {
             val popupWidth = resolveHomescreenPopupWidth(activityContext)
             systemShortcutContainer = inflateAndAdd(R.layout.system_shortcut_rows_container, this)
-            systemShortcuts.forEachIndexed { index, systemShortcut ->
+            maybeAddWallpaperCarousel(systemShortcutContainer!!)
+            systemShortcuts.forEach { systemShortcut ->
                 val view: DeepShortcutView =
                     inflateAndAdd(R.layout.system_shortcut, systemShortcutContainer)
                 view.layoutParams.width = popupWidth
@@ -160,10 +161,6 @@ open class PopupContainer<T : ActivityContext>(
                             .log(systemShortcut.eventId)
                     }
                     systemShortcut.popupAction.invoke(activityContext, itemInfo, itemView)
-                }
-                // Wallpaper chips sit under "Wallpaper & style" (first item).
-                if (index == 0) {
-                    maybeAddWallpaperCarousel(systemShortcutContainer!!)
                 }
             }
             show()
