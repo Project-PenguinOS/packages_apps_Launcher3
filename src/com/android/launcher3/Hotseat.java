@@ -502,6 +502,42 @@ public class Hotseat extends CellLayout implements Insettable {
     }
 
     @Override
+    public void setScaleX(float scaleX) {
+        if (scaleX == getScaleX()) return;
+        super.setScaleX(scaleX);
+        invalidateSearchPillGlass();
+    }
+
+    @Override
+    public void setScaleY(float scaleY) {
+        if (scaleY == getScaleY()) return;
+        super.setScaleY(scaleY);
+        invalidateSearchPillGlass();
+    }
+
+    @Override
+    public void setPivotX(float pivotX) {
+        super.setPivotX(pivotX);
+        if (getScaleX() != 1f) invalidateSearchPillGlass();
+    }
+
+    @Override
+    public void setPivotY(float pivotY) {
+        super.setPivotY(pivotY);
+        if (getScaleY() != 1f) invalidateSearchPillGlass();
+    }
+
+    /**
+     * The pill's compositor glass only takes a new position when the pill redraws, so redraw
+     * it while the hotseat scales (folder open, drag) or the glass is left behind its label.
+     */
+    private void invalidateSearchPillGlass() {
+        if (mSearchPill == null) return;
+        mSearchPill.invalidate();
+        if (mQsbPillGlass != null) mQsb.invalidate();
+    }
+
+    @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
         // We allow horizontal workspace scrolling from within the Hotseat. We do this by delegating
         // touch intercept the Workspace, and if it intercepts, delegating touch to the Workspace
