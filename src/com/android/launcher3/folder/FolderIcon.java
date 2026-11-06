@@ -916,6 +916,26 @@ public class FolderIcon extends FrameLayout implements FloatingIconViewCompanion
                 + Math.round(6 * getResources().getDisplayMetrics().density);
     }
 
+    /**
+     * How far the workspace grid holding this folder runs behind the Search pill above the dock,
+     * in px; 0 when it doesn't. The last row extends under the pill.
+     */
+    int getSearchPillOverlap() {
+        if (!(mActivity instanceof Launcher launcher) || launcher.getHotseat() == null
+                || !(getParent() instanceof View grid)) {
+            return 0;
+        }
+        int pillTop = launcher.getHotseat().getSearchPillTop();
+        if (pillTop < 0) return 0;
+        int bottom = grid.getHeight();
+        for (View v = grid; v != launcher.getDragLayer(); ) {
+            bottom += v.getTop();
+            if (!(v.getParent() instanceof View parent)) return 0;
+            v = parent;
+        }
+        return Math.max(0, bottom - pillTop);
+    }
+
     /** Gap between a big folder's preview and the label below it. */
     int getBigFolderLabelGap() {
         if (mInfo != null && mInfo.forceBigPreview) {

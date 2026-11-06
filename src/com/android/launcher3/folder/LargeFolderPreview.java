@@ -354,6 +354,11 @@ public class LargeFolderPreview {
             // between them so the label isn't pushed out of the icon and clipped.
             previewTop = top + Math.max(0, availableHeight - side) - pad
                     - mIcon.getBigFolderLabelGap();
+            // The last row runs behind the Search pill; keep the panel and label above it.
+            int overlap = mIcon.getSearchPillOverlap();
+            if (overlap > 0) {
+                previewTop = Math.min(previewTop, top + availableHeight - side - pad - overlap);
+            }
         }
         int lowest = top + Math.max(0, availableHeight - side - mIcon.getBigFolderLabelGap());
         return Math.max(top + pad, Math.min(previewTop, lowest));
