@@ -118,6 +118,8 @@ public class Hotseat extends CellLayout implements Insettable {
     private @Nullable PenguinDockGlass mQsbPillGlass;
     /** The Search pill's centre as a distance from the bottom of the home screen; -1 if none. */
     private int mSearchPillCentreFromBottom = -1;
+    /** How far home blurs the dock content, from {@link #setDockContentBlur}. */
+    private float mDockContentBlur;
     private int mDockBlurMargin;
     /** Whether the dock lays out at its natural width (PenguinDockMetrics.usesNaturalDock). */
     private boolean mNaturalDock;
@@ -147,9 +149,8 @@ public class Hotseat extends CellLayout implements Insettable {
      * glass fill that blurs along with the icons.
      */
     public void setDockContentBlur(float progress) {
-        mDockGlass.setFlatProgress(progress);
-        if (mSearchPillGlass != null) mSearchPillGlass.setFlatProgress(progress);
-        if (mQsbPillGlass != null) mQsbPillGlass.setFlatProgress(progress);
+        mDockContentBlur = progress;
+        updateGlassFlatProgress();
     }
 
     public void setDockCompanionSlotCount(int count) {
@@ -522,36 +523,27 @@ public class Hotseat extends CellLayout implements Insettable {
     public void setScaleX(float scaleX) {
         if (scaleX == getScaleX()) return;
         super.setScaleX(scaleX);
-        invalidateSearchPillGlass();
+        updateGlassFlatProgress();
     }
 
     @Override
     public void setScaleY(float scaleY) {
         if (scaleY == getScaleY()) return;
         super.setScaleY(scaleY);
-        invalidateSearchPillGlass();
-    }
-
-    @Override
-    public void setPivotX(float pivotX) {
-        super.setPivotX(pivotX);
-        if (getScaleX() != 1f) invalidateSearchPillGlass();
-    }
-
-    @Override
-    public void setPivotY(float pivotY) {
-        super.setPivotY(pivotY);
-        if (getScaleY() != 1f) invalidateSearchPillGlass();
+        updateGlassFlatProgress();
     }
 
     /**
-     * The pill's compositor glass only takes a new position when the pill redraws, so redraw
-     * it while the hotseat scales (folder open, drag) or the glass is left behind its label.
+     * The compositor glass takes its position from RenderThread and can trail a frame behind
+     * the views, so it jumps away from the dock while the dock scales (folder open, drag).
+     * A scaled dock uses the plain glass fill, which is drawn with the views.
      */
-    private void invalidateSearchPillGlass() {
-        if (mSearchPill == null) return;
-        mSearchPill.invalidate();
-        if (mQsbPillGlass != null) mQsb.invalidate();
+    private void updateGlassFlatProgress() {
+        if (mDockGlass == null) return;
+        float progress = getScaleX() != 1f || getScaleY() != 1f ? 1f : mDockContentBlur;
+        mDockGlass.setFlatProgress(progress);
+        if (mSearchPillGlass != null) mSearchPillGlass.setFlatProgress(progress);
+        if (mQsbPillGlass != null) mQsbPillGlass.setFlatProgress(progress);
     }
 
     @Override
