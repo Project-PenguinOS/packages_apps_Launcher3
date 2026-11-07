@@ -28,6 +28,8 @@ public final class PenguinDockGlass extends Drawable {
     private BackgroundBlurDrawable blur;
     private int alpha = 255;
     private float flatProgress;
+    /** Frames the plain fill stays after the glass turns live. */
+    private int liveWarmupFrames;
     private final boolean searchPanel;
     private boolean capsule;
     /** Alpha of the owner and its parents, which the compositor blur does not see. */
@@ -66,19 +68,25 @@ public final class PenguinDockGlass extends Drawable {
         float radius = radius(density);
         WindowManager wm = owner.getContext().getSystemService(WindowManager.class);
         boolean enabled = wm != null && wm.isCrossWindowBlurEnabled();
-        float live = 1f - flatProgress;
-        if (enabled && live > 0f && owner.getViewRootImpl() != null) {
+        float live = liveWarmupFrames > 0 ? 0f : 1f - flatProgress;
+        if (enabled && owner.getViewRootImpl() != null) {
             if (blur == null) blur = owner.getViewRootImpl().createBackgroundBlurDrawable();
+            viewAlpha = viewAlpha();
+            // Keep a hidden region while flat, a re-added one is misplaced for a frame.
+            boolean track = live == 0f && alpha > 0 && viewAlpha > 0f;
             // Spotlight is a large reading panel, so it needs a stronger frost than the dock.
-            blur.setBlurRadius(Math.round((searchPanel ? SEARCH_BLUR_DP : DOCK_BLUR_DP)
-                    * density));
+            blur.setBlurRadius(track ? 1 : Math.round((searchPanel ? SEARCH_BLUR_DP
+                    : DOCK_BLUR_DP) * density));
             blur.setCornerRadius(radius);
             blur.setMaterial(MATERIAL);
             blur.setColor(0);
             blur.setBounds(getBounds());
-            viewAlpha = viewAlpha();
-            blur.setAlpha(Math.round(alpha * live * viewAlpha));
+            blur.setAlpha(track ? 1 : Math.round(alpha * live * viewAlpha));
             blur.draw(canvas);
+        }
+        if (liveWarmupFrames > 0) {
+            liveWarmupFrames--;
+            owner.postInvalidateOnAnimation();
         }
         rect.set(getBounds());
         paint.setStyle(Paint.Style.FILL);
@@ -86,7 +94,7 @@ public final class PenguinDockGlass extends Drawable {
         // blur, a plain fill stands in for the glass.
         boolean noGlass = !enabled || (blur == null && live > 0f);
         int fill = noGlass ? FALLBACK_FILL : FLAT_FILL;
-        float fillAlpha = noGlass ? 1f : flatProgress;
+        float fillAlpha = noGlass ? 1f : 1f - live;
         paint.setColor(fill);
         paint.setAlpha(Math.round(colorAlpha(fill, alpha) * fillAlpha));
         canvas.drawRoundRect(rect, radius, radius, paint);
@@ -134,6 +142,7 @@ public final class PenguinDockGlass extends Drawable {
     public void setFlatProgress(float progress) {
         progress = Math.max(0f, Math.min(1f, progress));
         if (flatProgress == progress) return;
+        if (flatProgress == 1f) liveWarmupFrames = 2;
         flatProgress = progress;
         invalidateSelf();
         owner.invalidate();
