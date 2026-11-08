@@ -377,6 +377,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     // popping in statically.
     private ScalingWorkspaceRevealAnim mFallbackRevealAnimation;
     private boolean mIsLauncherAnimating = false;
+    // The latest app launch/close fade of the drawer content.
+    private AnimatorSet mAllAppsContentAnimator;
 
     private LauncherBackAnimationController mBackAnimationController;
     private final AnimatorListenerAdapter mForceInvisibleListener = new AnimatorListenerAdapter() {
@@ -1060,8 +1062,13 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (mLauncher.isInState(ALL_APPS)) {
             // All Apps in portrait mode is full screen, so we only animate AllAppsContainerView.
             final View appsView = mLauncher.getAppsView();
-            final float startAlpha = appsView.getAlpha();
-            final float startScale = SCALE_PROPERTY.get(appsView);
+            // A back gesture during a launch closes the app while the launch fade is still
+            // running, so the current alpha may be partway to 0. Stop that fade and restore the
+            // resting values at the end instead of the current ones.
+            if (mAllAppsContentAnimator != null) {
+                mAllAppsContentAnimator.cancel();
+            }
+            mAllAppsContentAnimator = launcherAnimator;
             if (mDeviceProfile.getDeviceProperties().isLargeScreen()) {
 
                 // AllApps should not fade at all in tablets.
@@ -1093,9 +1100,13 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             launcherAnimator.play(alpha);
 
             endListener = () -> {
-                appsView.setAlpha(startAlpha);
-                scaleProperty.set(appsView, startScale);
-                appsView.setLayerType(View.LAYER_TYPE_NONE, null);
+                // A newer drawer animation owns the view; let it restore the resting values.
+                if (mAllAppsContentAnimator == launcherAnimator) {
+                    mAllAppsContentAnimator = null;
+                    appsView.setAlpha(1f);
+                    scaleProperty.set(appsView, 1f);
+                    appsView.setLayerType(View.LAYER_TYPE_NONE, null);
+                }
                 mLauncher.resumeExpensiveViewUpdates();
             };
         } else if (mLauncher.isInState(OVERVIEW)) {
