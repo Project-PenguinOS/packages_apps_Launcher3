@@ -26,6 +26,7 @@ public final class PenguinDockGlass extends Drawable {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
     private BackgroundBlurDrawable blur;
+    private int lastBlurRadius = -1;
     private int alpha = 255;
     private float flatProgress;
     /** Frames the plain fill stays after the glass turns live. */
@@ -72,17 +73,15 @@ public final class PenguinDockGlass extends Drawable {
         if (enabled && owner.getViewRootImpl() != null) {
             if (blur == null) blur = owner.getViewRootImpl().createBackgroundBlurDrawable();
             viewAlpha = viewAlpha();
-            // Keep a hidden region while flat, a re-added one is misplaced for a frame.
-            boolean track = live == 0f && alpha > 0 && viewAlpha > 0f;
-            // Spotlight is a large reading panel, so it needs a stronger frost than the dock.
-            blur.setBlurRadius(track ? 1 : Math.round((searchPanel ? SEARCH_BLUR_DP
-                    : DOCK_BLUR_DP) * density));
+            boolean changed = updateBlur(density);
             blur.setCornerRadius(radius);
             blur.setMaterial(MATERIAL);
             blur.setColor(0);
             blur.setBounds(getBounds());
-            blur.setAlpha(track ? 1 : Math.round(alpha * live * viewAlpha));
             blur.draw(canvas);
+            // The region goes to SurfaceFlinger on the next frame; changed inside a draw, a kept
+            // region would wait for one that may never come, and stay hidden once flat.
+            if (changed) owner.postInvalidateOnAnimation();
         }
         if (liveWarmupFrames > 0) {
             liveWarmupFrames--;
@@ -109,6 +108,34 @@ public final class PenguinDockGlass extends Drawable {
         paint.setAlpha(Math.round(colorAlpha(0x33FFFFFF, alpha) * rimAlpha));
         canvas.drawRoundRect(rect, radius, radius, paint);
     }
+    /** Sets the region's blur radius and alpha; returns whether either changed. */
+    private boolean updateBlur(float density) {
+        float live = liveWarmupFrames > 0 ? 0f : 1f - flatProgress;
+        // Keep a hidden region while flat, a re-added one is misplaced for a frame.
+        boolean track = live == 0f && alpha > 0 && viewAlpha > 0f;
+        // Spotlight is a large reading panel, so it needs a stronger frost than the dock.
+        int blurRadius = track ? 1 : Math.round((searchPanel ? SEARCH_BLUR_DP
+                : DOCK_BLUR_DP) * density);
+        int blurAlpha = track ? 1 : Math.round(alpha * live * viewAlpha);
+        boolean changed = blur.getAlpha() != blurAlpha || blurRadius != lastBlurRadius;
+        lastBlurRadius = blurRadius;
+        blur.setBlurRadius(blurRadius);
+        blur.setAlpha(blurAlpha);
+        return changed;
+    }
+
+    /**
+     * The region's radius and alpha are copied for SurfaceFlinger before the frame is drawn,
+     * but its position follows the views in that frame. Apply a change at once, so a dock
+     * that starts to scale does not move the live glass for a frame.
+     */
+    private void updateBlurNow() {
+        // Made during a draw, the change ships with the next frame, so make sure one comes.
+        if (blur != null && updateBlur(owner.getResources().getDisplayMetrics().density)) {
+            owner.postInvalidateOnAnimation();
+        }
+    }
+
     private float viewAlpha() {
         float a = 1f;
         View v = owner;
@@ -144,6 +171,7 @@ public final class PenguinDockGlass extends Drawable {
         if (flatProgress == progress) return;
         if (flatProgress == 1f) liveWarmupFrames = 2;
         flatProgress = progress;
+        updateBlurNow();
         invalidateSelf();
         owner.invalidate();
     }
@@ -153,7 +181,11 @@ public final class PenguinDockGlass extends Drawable {
         outline.setRoundRect(getBounds(), radius);
         outline.setAlpha(alpha / 255f);
     }
-    @Override public void setAlpha(int alpha) { this.alpha = alpha; invalidateSelf(); }
+    @Override public void setAlpha(int alpha) {
+        this.alpha = alpha;
+        updateBlurNow();
+        invalidateSelf();
+    }
     @Override public void setColorFilter(ColorFilter filter) { paint.setColorFilter(filter); }
     @Override public int getOpacity() { return PixelFormat.TRANSLUCENT; }
 }

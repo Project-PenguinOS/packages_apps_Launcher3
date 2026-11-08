@@ -18,6 +18,7 @@ package com.android.launcher3.util
 
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.HardwareRenderer
 import android.graphics.Outline
 import android.graphics.Path
 import android.graphics.Rect
@@ -105,11 +106,20 @@ constructor(
     /** Records the drag layer as it currently looks, to be blurred behind the opening surface. */
     private fun captureBackdrop() {
         val dragLayer = activityContext.dragLayer
-        val canvas =
-            workspaceBlurRenderNode.beginRecording(dragLayer.getWidth(), dragLayer.getHeight())
-        dragLayer.draw(canvas)
+        val width = dragLayer.width
+        val height = dragLayer.height
+        val capture = RenderNode("folderBackdropCapture")
+        capture.setPosition(0, 0, width, height)
+        dragLayer.draw(capture.beginRecording(width, height))
+        capture.endRecording()
+        // Replaying live view nodes inside the moving folder gives compositor blur nodes a
+        // second screen position. Freeze the backdrop before applying the folder's transform.
+        val bitmap = HardwareRenderer.createHardwareBitmap(capture, width, height)
+        capture.discardDisplayList()
+        val canvas = workspaceBlurRenderNode.beginRecording(width, height)
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
         workspaceBlurRenderNode.endRecording()
-        workspaceBlurRenderNode.setPosition(0, 0, dragLayer.getWidth(), dragLayer.getHeight())
+        workspaceBlurRenderNode.setPosition(0, 0, width, height)
     }
 
     override fun drawFolderBlur(canvas: Canvas, pathWrapper: PathWrapper?, view: View) {
