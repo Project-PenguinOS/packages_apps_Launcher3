@@ -195,8 +195,16 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
                 invalidate()
             }
 
+        private var announced = false
+
         override fun draw(canvas: Canvas) {
-            if (flying) super.draw(canvas)
+            if (!flying) return
+            super.draw(canvas)
+            if (!announced) {
+                // SystemUI holds its clock until the first flight frame is out.
+                announced = true
+                postOnAnimation { dispatchClockState() }
+            }
         }
 
         init {
