@@ -199,7 +199,11 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
 
         override fun draw(canvas: Canvas) {
             if (!flying) return
+            // Undo the drag layer's status bar inset; the poses are in its coordinates.
+            val save = canvas.save()
+            canvas.translate(-left.toFloat(), -top.toFloat())
             super.draw(canvas)
+            canvas.restoreToCount(save)
             if (!announced) {
                 // SystemUI holds its clock until the first flight frame is out.
                 announced = true
@@ -216,7 +220,9 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
 
         abstract fun land()
 
-        protected fun settledClock(): Pair<RectF, Float>? = settledClock(widget, layer)
+        // Where the widget's clock is on screen right now, zoom and all. Aiming at this (rather
+        // than where it will settle) lands the flight exactly on the widget whenever it ends.
+        protected fun liveClock(): Pair<RectF, Float>? = widget.clockRectIn(layer)
 
         fun remove() {
             (parent as? ViewGroup)?.removeView(this)
@@ -245,7 +251,7 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
 
         private fun end(): CosClock.Pose {
             val rest = clock.pose()
-            val (rect, scale) = settledClock() ?: return from
+            val (rect, scale) = liveClock() ?: return from
             return CosClock.Pose(rect.left, rect.top, rest.textSize * scale, rest.height)
         }
 
@@ -278,7 +284,7 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
         }
 
         override fun onDraw(canvas: Canvas) {
-            val (end, _) = settledClock() ?: return
+            val (end, _) = liveClock() ?: return
             val from =
                 if (!small) start
                 else {
