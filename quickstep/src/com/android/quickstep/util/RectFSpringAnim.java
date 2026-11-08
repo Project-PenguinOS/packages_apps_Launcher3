@@ -263,15 +263,15 @@ public class RectFSpringAnim extends SurfaceReleaseCheck {
     }
 
     /**
-     * How far the window has given way to its icon. ColorOS 17 starts the swap a couple of frames
-     * after the finger lifts and has it half done at 75 ms and all but done by 175 ms.
+     * How far the window has given way to its icon. OxygenOS 16 lets the window fly for about
+     * 55 ms after the finger lifts and then cuts over quickly, 95% to 10% in about 40 ms.
      */
     public float getCosFadeProgress() {
         if (mCosStartTime == 0) {
             return 0f;
         }
-        float t = Math.max(0, SystemClock.uptimeMillis() - mCosStartTime - 17) / 1000f;
-        float wt = 30f * t;
+        float t = Math.max(0, SystemClock.uptimeMillis() - mCosStartTime - 55) / 1000f;
+        float wt = 85f * t;
         return 1 - (1 + wt) * (float) Math.exp(-wt);
     }
 
@@ -320,8 +320,9 @@ public class RectFSpringAnim extends SurfaceReleaseCheck {
                 yVelocityPxPerS, minVelocityYPxPerS, maxVelocityYPxPerS, fallOffFactor);
 
         if (mCos) {
+            // OxygenOS turns the window home at once: no drift on along the swipe.
             if ((endX - startX) * xVelocityPxPerS < 0) xVelocityPxPerS *= 0.25f;
-            if ((endY - startY) * yVelocityPxPerS < 0) yVelocityPxPerS *= 0.25f;
+            if ((endY - startY) * yVelocityPxPerS < 0) yVelocityPxPerS = 0f;
         }
 
         mRectXSpring =
@@ -347,8 +348,12 @@ public class RectFSpringAnim extends SurfaceReleaseCheck {
 
         float scaleVelocity = velocityPxPerMs.y * minVisibleChange;
         if (mCos) {
-            scaleVelocity = Utilities.boundToRange(
-                    -velocityPxPerMs.y * 1000 / mStartRect.height(), 0f, 8f);
+            // Keep the window shrinking at the pace it had under the finger: OxygenOS flies it
+            // home at about 2.8 screen widths a second from the moment the finger lifts.
+            float span = Math.max(1f, mStartRect.width() - mTargetRect.width());
+            float flight = 2.8f * context.getResources().getDisplayMetrics().widthPixels / span;
+            scaleVelocity = Utilities.boundToRange(Math.max(flight,
+                    -velocityPxPerMs.y * 1000 / mStartRect.height()), 0f, 12f);
             mCosStartTime = SystemClock.uptimeMillis();
         }
         float dampingZ = mRectDamping >= 0 ? mRectDamping

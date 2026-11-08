@@ -216,6 +216,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private static final long COS_LAUNCH_ALPHA_DURATION = 43;
     // ColorOS 17 zooms the wallpaper in over half a second, half way at 85 ms.
     private static final long COS_LAUNCH_DEPTH_DURATION = 500;
+    // OxygenOS 16 grows the window out of its icon on one spring of stiffness 420 and damping
+    // 1.04, measured from its SurfaceFlinger layers; it settles about half a second later.
+    private static final long COS_APP_LAUNCH_DURATION = 500;
 
     public static final int ANIMATION_NAV_FADE_IN_DURATION = 266;
     public static final int ANIMATION_NAV_FADE_OUT_DURATION = 133;
@@ -429,11 +432,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         final RectF frame = new RectF();
         final Rect drawableBounds = new Rect();
         final Rect predictedScreenBounds = new Rect();
-        final float endRadius = getWindowCornerRadius(mLauncher);
         final android.graphics.Paint fill = new android.graphics.Paint(
                 android.graphics.Paint.ANTI_ALIAS_FLAG);
         final android.graphics.drawable.Drawable logo;
-        final AnimOpenProperties properties;
+        final Rect targetBounds = new Rect();
         final float originalAlpha;
         final long started = android.os.SystemClock.uptimeMillis();
         final Runnable timeout = this::remove;
@@ -466,18 +468,48 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             }
             predictedScreenBounds.set(target);
             predictedScreenBounds.offset(rootLocation[0], rootLocation[1]);
-            properties = new AnimOpenProperties(getResources(), target, iconBounds,
-                    source, 0, 0, false, false);
+            targetBounds.set(target);
             android.graphics.drawable.Drawable.ConstantState state =
                     source.getIcon().getConstantState();
             logo = state == null ? source.getIcon() : state.newDrawable(getResources()).mutate();
-            android.util.TypedValue color = new android.util.TypedValue();
-            mLauncher.getTheme().resolveAttribute(android.R.attr.colorBackground, color, true);
-            fill.setColor(color.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT
-                    && color.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT
-                    ? color.data : 0xff121212);
+            // Grow the icon itself, as OxygenOS does: fill with the icon's own background.
+            fill.setColor(iconBackgroundColor(logo));
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             setClickable(false);
+        }
+
+        /** The opaque colour just inside the top edge of the icon's shape. */
+        private int iconBackgroundColor(android.graphics.drawable.Drawable icon) {
+            final int size = 48;
+            int color = 0xffffffff;
+            Rect bounds = new Rect(icon.getBounds());
+            try {
+                // Icons hold hardware bitmaps, which a software canvas cannot draw: record the
+                // icon, render it on the GPU and read back a software copy.
+                android.graphics.Picture picture = new android.graphics.Picture();
+                icon.setBounds(0, 0, size, size);
+                icon.draw(picture.beginRecording(size, size));
+                picture.endRecording();
+                android.graphics.Bitmap hardware = android.graphics.Bitmap.createBitmap(picture,
+                        size, size, android.graphics.Bitmap.Config.HARDWARE);
+                android.graphics.Bitmap bitmap =
+                        hardware.copy(android.graphics.Bitmap.Config.ARGB_8888, false);
+                hardware.recycle();
+                if (bitmap != null) {
+                    for (int y = 2; y < size / 2; y++) {
+                        if (android.graphics.Color.alpha(bitmap.getPixel(size / 2, y)) == 0xff) {
+                            color = bitmap.getPixel(size / 2, y + 2) | 0xff000000;
+                            break;
+                        }
+                    }
+                    bitmap.recycle();
+                }
+            } catch (RuntimeException e) {
+                Log.w(TAG, "Launch preview: icon colour unavailable", e);
+            } finally {
+                icon.setBounds(bounds);
+            }
+            return color;
         }
 
         void start() {
@@ -500,32 +532,22 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             }
             invalidate();
             // Hold a still logo, without redrawing continuously, if WM takes longer.
-            if (elapsed() < APP_LAUNCH_DURATION) postOnAnimation(this);
+            if (elapsed() < mLaunchDuration) postOnAnimation(this);
         }
 
         @Override
         protected void onDraw(android.graphics.Canvas canvas) {
             if (removed) return;
-            float progress = Utilities.boundToRange((float) elapsed() / APP_LAUNCH_DURATION, 0, 1);
+            float progress = Utilities.boundToRange((float) elapsed() / mLaunchDuration, 0, 1);
             float t = mOpeningInterpolator.getInterpolation(progress);
-            float iconScale = Utilities.mapRange(t, properties.initialAppIconScale,
-                    properties.finalAppIconScale);
-            float cropWidth = Utilities.mapRange(t, properties.cropWidthStart,
-                    properties.cropWidthEnd);
-            float cropHeight = Utilities.mapRange(t, properties.cropHeightStart,
-                    properties.cropHeightEnd);
-            float scale = Math.min(1f, Math.max(iconBounds.width() * iconScale / cropWidth,
-                    iconBounds.height() * iconScale / cropHeight));
-            float cx = iconBounds.centerX() + properties.dX * t;
-            float cy = iconBounds.centerY() + properties.dY * t;
-            float width = cropWidth * scale;
-            float height = cropHeight * scale;
-            frame.set(cx - width / 2, cy - height / 2, cx + width / 2, cy + height / 2);
-            float radius = Utilities.mapRange(t, properties.cropWidthStart / 2f,
-                    endRadius) * scale;
+            cosOpenRect(iconBounds, 0, 0, targetBounds, t, frame);
+            float radius = cosOpenRadius(iconBounds, t);
             fill.setAlpha(Math.round(255 * Math.min(1f, progress * 8f)));
             canvas.drawRoundRect(frame, radius, radius, fill);
-            float size = Math.min(Math.min(width, height), properties.cropWidthStart * scale);
+            float cx = frame.centerX();
+            float cy = frame.centerY();
+            float size = Math.min(Math.min(frame.width(), frame.height()),
+                    iconBounds.width() * 2f);
             drawableBounds.set(logo.getBounds());
             logo.setBounds(Math.round(cx - size / 2), Math.round(cy - size / 2),
                     Math.round(cx + size / 2), Math.round(cy + size / 2));
@@ -577,6 +599,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
     private final Interpolator mContentScaleInterpolator;
     private final Interpolator mIconAlphaInterpolator;
     private final boolean mCosLaunch;
+    private final long mLaunchDuration;
+    // How far the immediate launch preview had run when the app window arrived. Effects the
+    // preview does not draw (home blur, dim, zoom) start from here instead of jumping ahead.
+    private long mPreviewJoinMs;
     private final Interpolator mBlurInterpolator;
 
     private final SystemUiProxy mSystemUiProxy;
@@ -642,15 +668,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         mOpeningXInterpolator = AnimationUtils.loadInterpolator(
                 launcher, R.interpolator.app_open_x);
-        // OxygenOS's app launch: the window, its corners and home behind it all follow one
-        // critically damped spring, a touch quicker than its recordings so opening keeps pace with
-        // ColorOS 17 throws the window out of its icon and lets it ease in over a long tail, an
-        // overdamped spring fitted to its SurfaceFlinger layers: half way at 60 ms, 80% at 125 ms,
-        // 94% at 210 ms, with its corners and the launch blur on the same curve.
+        // The window, its corners and the launch blur follow one spring.
         boolean cos = cosExperience(launcher);
         mCosLaunch = cos;
-        mOpeningInterpolator = new SpringInterpolator(cos ? 1900 : 400, cos ? 1.85 : 1,
-                APP_LAUNCH_DURATION);
+        mLaunchDuration = cos ? COS_APP_LAUNCH_DURATION : APP_LAUNCH_DURATION;
+        mOpeningInterpolator = new SpringInterpolator(cos ? 420 : 400, cos ? 1.04 : 1,
+                mLaunchDuration);
         mOpeningRadiusInterpolator = mOpeningInterpolator;
         mContentScaleInterpolator = new SpringInterpolator(400, 1, CONTENT_SCALE_DURATION);
         mIconAlphaInterpolator = cos ? LINEAR : new SpringInterpolator(4000, 1,
@@ -761,7 +784,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         // recents launch or not for sure until we know the opening app targets.
         long duration = fromRecents
                 ? RECENTS_LAUNCH_DURATION
-                : APP_LAUNCH_DURATION;
+                : mLaunchDuration;
 
         long statusBarTransitionDelay = duration - STATUS_BAR_TRANSITION_DURATION
                 - STATUS_BAR_TRANSITION_PRE_DELAY;
@@ -933,7 +956,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (launcherClosing) {
             // Delay animation by a frame to avoid jank.
             Pair<AnimatorSet, Runnable> launcherContentAnimator =
-                    getLauncherContentAnimator(true /* isAppOpening */, startDelay, false);
+                    getLauncherContentAnimator(true /* isAppOpening */,
+                            startDelay + (int) mPreviewJoinMs, false);
             anim.play(launcherContentAnimator.first);
             anim.addListener(new AnimatorListenerAdapter() {
                 @Override
@@ -954,6 +978,21 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         mLauncher.getStateManager().setCurrentAnimation(anim);
         anim.play(getOpeningWindowAnimatorsForWidget(
                 v, appSurfaces, wallpaperSurfaces, nonAppSurfaces, launcherClosing));
+    }
+
+    /** The rect an opening app fills, growing from its icon (offset by dx, dy) to the target. */
+    private static void cosOpenRect(RectF icon, float dx, float dy, Rect target, float t,
+            RectF out) {
+        out.set(Utilities.mapRange(t, icon.left + dx, target.left),
+                Utilities.mapRange(t, icon.top + dy, target.top),
+                Utilities.mapRange(t, icon.right + dx, target.right),
+                Utilities.mapRange(t, icon.bottom + dy, target.bottom));
+    }
+
+    /** The on-screen corner radius of that rect: round like the icon, then the window's. */
+    private float cosOpenRadius(RectF icon, float t) {
+        return Utilities.mapRange(t, Math.min(icon.width(), icon.height()) / 2f,
+                getWindowCornerRadius(mLauncher));
     }
 
     /**
@@ -1223,10 +1262,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
         final SurfaceControl scrimLayer = addScrimLayer(surfaceApplier, openingSurfaces);
         final float scrimAlpha = getScrimAlpha();
+        final long joinMs = mPreviewJoinMs;
 
         AnimatorSet animatorSet = new AnimatorSet();
         ValueAnimator appAnimator = ValueAnimator.ofFloat(0, 1);
-        appAnimator.setDuration(APP_LAUNCH_DURATION);
+        appAnimator.setDuration(mLaunchDuration);
         appAnimator.setInterpolator(LINEAR);
         appAnimator.addListener(floatingView);
         appAnimator.addListener(new AnimatorListenerAdapter() {
@@ -1276,9 +1316,9 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             FloatProp mIconAlpha = new FloatProp(prop.iconAlphaStart, 0f,
                     mCosLaunch
                             ? clampToDuration(mIconAlphaInterpolator, 0,
-                                    COS_LAUNCH_ALPHA_DURATION, APP_LAUNCH_DURATION)
+                                    COS_LAUNCH_ALPHA_DURATION, mLaunchDuration)
                             : clampToDuration(mIconAlphaInterpolator, APP_LAUNCH_ALPHA_START_DELAY,
-                                    APP_LAUNCH_ALPHA_DURATION, APP_LAUNCH_DURATION));
+                                    APP_LAUNCH_ALPHA_DURATION, mLaunchDuration));
 
             FloatProp mWindowRadius =
                     new FloatProp(initialWindowRadius, getWindowCornerRadius(mLauncher),
@@ -1293,10 +1333,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
             FloatProp mNavFadeOut = new FloatProp(1f, 0f, clampToDuration(
                     NAV_FADE_OUT_INTERPOLATOR, 0, ANIMATION_NAV_FADE_OUT_DURATION,
-                    APP_LAUNCH_DURATION));
+                    mLaunchDuration));
             FloatProp mNavFadeIn = new FloatProp(0f, 1f, clampToDuration(
-                    NAV_FADE_IN_INTERPOLATOR, ANIMATION_DELAY_NAV_FADE_IN,
-                    ANIMATION_NAV_FADE_IN_DURATION, APP_LAUNCH_DURATION));
+                    NAV_FADE_IN_INTERPOLATOR, mLaunchDuration - ANIMATION_NAV_FADE_IN_DURATION,
+                    ANIMATION_NAV_FADE_IN_DURATION, mLaunchDuration));
 
             // Blur fades in/out over the first 75% of the animation so the GPU is free
             // during the heaviest crop-rect phase at the end. This prevents jank when
@@ -1304,11 +1344,12 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
             FloatProp mBlurRadius = new FloatProp(0f, mMaxBlurRadius, mCosLaunch
                     ? mBlurInterpolator
                     : clampToDuration(mBlurInterpolator, 0, (long) (APP_LAUNCH_DURATION * 0.75f),
-                            APP_LAUNCH_DURATION));
+                            mLaunchDuration));
             FloatProp mBlurScrimAlpha = new FloatProp(0f, scrimAlpha, mCosLaunch
                     ? mBlurInterpolator
                     : clampToDuration(mBlurInterpolator, 0, (long) (APP_LAUNCH_DURATION * 0.75f),
-                            APP_LAUNCH_DURATION));
+                            mLaunchDuration));
+            FloatProp mCosProgress = new FloatProp(0f, 1f);
 
             @Override
             public void onUpdate(float percent, boolean initOnly) {
@@ -1386,10 +1427,30 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 floatingIconBounds.right += offsetX;
                 floatingIconBounds.bottom += offsetY;
 
+                float windowRadius = mWindowRadius.value;
+                float iconRadius = mWindowRadius.value * scale;
+                if (mCosLaunch && rotationChange == 0) {
+                    // OxygenOS shows the whole app shrunk to the width of a rect that grows
+                    // out of the icon, cut off at the bottom, instead of a centre crop.
+                    cosOpenRect(launcherIconBounds, dragLayerBounds[0], dragLayerBounds[1],
+                            windowTargetBounds, mCosProgress.value, tmpRectF);
+                    scale = tmpRectF.width() / windowTargetBounds.width();
+                    crop.set(windowTargetBounds.left, windowTargetBounds.top,
+                            windowTargetBounds.right, windowTargetBounds.top + Math.min(
+                                    windowTargetBounds.height(),
+                                    Math.round(tmpRectF.height() / scale)));
+                    windowTransX0 = tmpRectF.left - crop.left * scale;
+                    windowTransY0 = tmpRectF.top - crop.top * scale;
+                    iconRadius = cosOpenRadius(launcherIconBounds, mCosProgress.value);
+                    windowRadius = iconRadius / scale;
+                    floatingIconBounds.set(tmpRectF);
+                    floatingIconBounds.offset(-dragLayerBounds[0], -dragLayerBounds[1]);
+                }
+
                 if (initOnly) {
                     // For the init pass, we want full alpha since the window is not yet ready.
                     floatingView.update(1f, floatingIconBounds, percent, 0f,
-                            mWindowRadius.value * scale, true /* isOpening */);
+                            iconRadius, true /* isOpening */);
                     return;
                 }
 
@@ -1417,11 +1478,11 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                         }
 
                         floatingView.update(mIconAlpha.value, floatingIconBounds, percent, 0f,
-                                mWindowRadius.value * scale, true /* isOpening */);
+                                iconRadius, true /* isOpening */);
                         builder.setMatrix(matrix)
                                 .setWindowCrop(crop)
                                 .setAlpha(1f - mIconAlpha.value)
-                                .setCornerRadius(mWindowRadius.value)
+                                .setCornerRadius(windowRadius)
                                 .setShadowRadius(mShadowRadius.value);
                     } else if (AnimatedSurfaceUtils.isClosing(surface)) {
                         if (surface.localBounds != null) {
@@ -1462,8 +1523,16 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
 
                 if (mIsAppLaunchBlurEnabled && scrimLayer != null && scrimLayer.isValid()) {
                     SurfaceProperties builder = transaction.forSurface(scrimLayer);
-                    builder.setAlpha(mBlurScrimAlpha.value);
-                    builder.setBackgroundBlurRadius((int) mBlurRadius.value);
+                    float blur = mBlurRadius.value;
+                    float dim = mBlurScrimAlpha.value;
+                    if (joinMs > 0) {
+                        float t = mBlurInterpolator.getInterpolation(Utilities.boundToRange(
+                                (percent * mLaunchDuration - joinMs) / mLaunchDuration, 0, 1));
+                        blur = mMaxBlurRadius * t;
+                        dim = scrimAlpha * t;
+                    }
+                    builder.setAlpha(dim);
+                    builder.setBackgroundBlurRadius((int) blur);
                 }
 
                 surfaceApplier.scheduleApply(transaction);
@@ -1477,8 +1546,10 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
         if (appTargetsAreTranslucent || !launcherClosing) {
             animatorSet.play(appAnimator);
         } else if (Utilities.blurBackgroundAtAppLaunch(mLauncher.getApplicationContext())) {
-             animatorSet.playTogether(appAnimator,
-                     getBackgroundAnimator(scrimLayer != null && scrimLayer.isValid()));
+             Animator background =
+                     getBackgroundAnimator(scrimLayer != null && scrimLayer.isValid());
+             background.setStartDelay(mPreviewJoinMs);
+             animatorSet.playTogether(appAnimator, background);
         } else {
             animatorSet.play(appAnimator);
         }
@@ -2622,6 +2693,8 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     && !areAllSurfacesTranslucent(appSurfaces)
                     && mPreview.matchesWindow(appSurfaces);
             if (mPreview != null && !continuePreview) mPreview.remove();
+            final long joinMs = continuePreview ? mPreview.elapsed() : 0;
+            mPreviewJoinMs = joinMs;
             if (launchingFromWidget) {
                 composeWidgetLaunchAnimator(anim, (LauncherAppWidgetHostView) mV, appSurfaces,
                         wallpaperSurfaces, nonAppSurfaces, launcherClosing);
@@ -2637,6 +2710,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                 addCujInstrumentation(anim, Cuj.CUJ_LAUNCHER_APP_LAUNCH_FROM_ICON);
                 skipFirstFrame = mCosLaunch;
             }
+            mPreviewJoinMs = 0;
 
             if (launcherClosing) {
                 anim.addListener(mForceInvisibleListener);
@@ -2662,7 +2736,7 @@ public class QuickstepTransitionManager implements OnDeviceProfileChangeListener
                     skipFirstFrame);
             if (continuePreview && anim.isStarted()) {
                 // Start at the preview's current time, rather than replaying from the icon.
-                anim.setCurrentPlayTime(Math.min(mPreview.elapsed(),
+                anim.setCurrentPlayTime(Math.min(joinMs,
                         Math.max(0, anim.getTotalDuration() - 1)));
                 mPreview.handOff();
             }
