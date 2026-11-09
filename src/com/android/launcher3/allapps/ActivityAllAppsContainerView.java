@@ -192,6 +192,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     protected SearchAdapterProvider<?> mMainAdapterProvider;
     private View mBottomSheetHandleArea;
     private boolean mHasWorkApps;
+    private boolean mUsingCategoriesTab;
     private boolean mHasPrivateApps;
     private float[] mBottomSheetCornerRadii;
     private ScrimView mScrimView;
@@ -746,7 +747,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         updateSearchResultsVisibility();
 
         boolean showTabs = shouldShowTabs();
-        if (showTabs == mUsingTabs && !force) {
+        // Work apps can arrive after the first bind and turn the category page into a work page.
+        boolean categoriesTab = showTabs && showCategoriesTab();
+        if (showTabs == mUsingTabs && categoriesTab == mUsingCategoriesTab && !force) {
             Log.d(TAG, "rebindAdapters: Not needed.");
             return;
         }
@@ -756,6 +759,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         // after this call.
         replaceAppsRVContainer(showTabs);
         mUsingTabs = showTabs;
+        mUsingCategoriesTab = categoriesTab;
 
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.MAIN).mRecyclerView);
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.WORK).mRecyclerView);
@@ -1505,7 +1509,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      * ever has two pages, so these two share the slot.
      */
     private AdapterHolder getSecondPageHolder() {
-        return mAH.get(showCategoriesTab() ? AdapterHolder.CATEGORIES : AdapterHolder.WORK);
+        return mAH.get(mUsingCategoriesTab ? AdapterHolder.CATEGORIES : AdapterHolder.WORK);
     }
 
     /**
@@ -1513,7 +1517,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      * line up with holder types except for the category tab, which borrows the work page slot.
      */
     private int holderTypeForPage(int page) {
-        return page == AdapterHolder.WORK && showCategoriesTab()
+        return page == AdapterHolder.WORK && mUsingCategoriesTab
                 ? AdapterHolder.CATEGORIES : page;
     }
 
