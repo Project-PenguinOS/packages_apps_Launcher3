@@ -83,6 +83,7 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
     private fun prepare(bounds: Rect?, fontHeight: Int) {
         stop()
         playing = false
+        launcher.hotseat?.setLiveGlassWhileScaled(true)
         content().forEach {
             it.scaleX = ZOOM
             it.scaleY = ZOOM
@@ -139,6 +140,7 @@ class CosClockUnlock(private val launcher: QuickstepLauncher) :
             it.scaleY = 1f
             it.alpha = 1f
         }
+        launcher.hotseat?.setLiveGlassWhileScaled(false)
         flight?.land()
         flight = null
     }

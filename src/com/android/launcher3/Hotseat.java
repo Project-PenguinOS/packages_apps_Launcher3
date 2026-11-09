@@ -118,6 +118,7 @@ public class Hotseat extends CellLayout implements Insettable {
     private @Nullable PenguinDockGlass mQsbPillGlass;
     /** The Search pill's centre as a distance from the bottom of the home screen; -1 if none. */
     private int mSearchPillCentreFromBottom = -1;
+    private boolean mLiveGlassWhileScaled;
     /** How far home blurs the dock content, from {@link #setDockContentBlur}. */
     private float mDockContentBlur;
     private int mDockBlurMargin;
@@ -150,6 +151,12 @@ public class Hotseat extends CellLayout implements Insettable {
      */
     public void setDockContentBlur(float progress) {
         mDockContentBlur = progress;
+        updateGlassFlatProgress();
+    }
+
+    /** Keeps the live glass while scaled by a RenderThread animation, which the glass follows. */
+    public void setLiveGlassWhileScaled(boolean live) {
+        mLiveGlassWhileScaled = live;
         updateGlassFlatProgress();
     }
 
@@ -540,7 +547,8 @@ public class Hotseat extends CellLayout implements Insettable {
      */
     private void updateGlassFlatProgress() {
         if (mDockGlass == null) return;
-        float progress = getScaleX() != 1f || getScaleY() != 1f ? 1f : mDockContentBlur;
+        boolean scaled = !mLiveGlassWhileScaled && (getScaleX() != 1f || getScaleY() != 1f);
+        float progress = scaled ? 1f : mDockContentBlur;
         mDockGlass.setFlatProgress(progress);
         if (mSearchPillGlass != null) mSearchPillGlass.setFlatProgress(progress);
         if (mQsbPillGlass != null) mQsbPillGlass.setFlatProgress(progress);
