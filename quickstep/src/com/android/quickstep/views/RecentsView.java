@@ -152,6 +152,7 @@ import com.android.launcher3.compat.AccessibilityManagerCompat;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.dagger.LauncherComponentProvider;
 import com.android.launcher3.desktop.DesktopRecentsTransitionController;
+import com.android.launcher3.display.DisplayController;
 import com.android.launcher3.deviceprofile.OverviewProfile;
 import com.android.launcher3.logger.LauncherAtom;
 import com.android.launcher3.logging.StatsLogManager;
@@ -2160,6 +2161,10 @@ public abstract class RecentsView<
         // Update RecentsView and TaskView's DeviceProfile dependent layout.
         updateOrientationHandler();
         mActionsView.updateDimension(dp, mLastComputedTaskSize);
+        if (mMemInfoView != null) {
+            mMemInfoView.setDp(dp);
+            mMemInfoView.updateVerticalMargin(DisplayController.getNavigationMode(mContext));
+        }
     }
 
     private void updateOrientationHandler() {

@@ -160,11 +160,26 @@ public class MemInfoView extends TextView implements Insettable {
     }
 
     public void updateVerticalMargin(NavigationMode mode) {
+        // The DeviceProfile is replaced on navigation mode, display and grid changes, so take the
+        // current one: a stale profile has stale insets and puts the text under the nav handle.
+        try {
+            DeviceProfile dp = RecentsViewContainer.containerFromContext(getContext())
+                    .getDeviceProfile();
+            if (dp != null) {
+                mDp = dp;
+            }
+        } catch (IllegalArgumentException e) {
+            // Not hosted by a recents container: keep the profile from setDp().
+        }
         LayoutParams lp = (LayoutParams) getLayoutParams();
+        if (mDp == null || lp == null) {
+            return;
+        }
         int bottomMargin = mDp.getOverviewActionsClaimedSpaceBelow();
 
         lp.setMargins(lp.leftMargin, lp.topMargin, lp.rightMargin, bottomMargin);
         lp.gravity = Gravity.CENTER_HORIZONTAL | Gravity.BOTTOM;
+        setLayoutParams(lp);
     }
 
     private String formatTotalMemory() {
