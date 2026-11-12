@@ -1058,6 +1058,11 @@ public class TaskbarLauncherStateController {
                     if (isInStashedState && committed) {
                         // Reset hotseat alpha to default
                         mLauncher.setHotseatIconsAlpha(1, ALPHA_CHANNEL_TASKBAR_ALIGNMENT);
+                        // onAnimationStart may have handed the icons to the taskbar. Once the
+                        // hotseat is back, the stashed taskbar must not draw them on top.
+                        if (isInLauncher() && mIconAlignment.isSettledOnValue(1)) {
+                            mTaskbarAlphaForHome.setValue(0);
+                        }
                     }
                 }
 
