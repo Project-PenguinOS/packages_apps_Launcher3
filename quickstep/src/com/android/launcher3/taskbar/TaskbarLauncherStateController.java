@@ -262,6 +262,10 @@ public class TaskbarLauncherStateController {
                     mLauncherState = finalState;
                     updateStateForFlag(FLAG_LAUNCHER_IN_STATE_TRANSITION, false);
                     applyState();
+                    if (finalState == LauncherState.NORMAL) {
+                        // Heals a stash animation that a racing transition dropped.
+                        mControllers.taskbarStashController.applyState();
+                    }
                     updateOverviewDragState(finalState);
                 }
             };

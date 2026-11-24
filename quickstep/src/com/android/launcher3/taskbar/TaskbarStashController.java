@@ -1827,6 +1827,19 @@ public class TaskbarStashController implements TaskbarControllers.LoggableTaskba
                         computeTaskbarJankMonitorTag(changedFlags));
                 return mAnimator;
             }
+            // mIsStashed is set before the animator runs. If the animator set that was to play
+            // it was dropped (a racing gesture or state transition), the icons were never faded
+            // and the taskbar view never hidden: a shrunken taskbar stays drawn under the
+            // hotseat. Nothing changes after that, so heal it here.
+            if ((mAnimator == null || !mAnimator.isStarted())
+                    && Float.compare(mIconAlphaForStash.getValue(), isStashed ? 0 : 1) != 0) {
+                Log.w(TAG, "Stash state " + isStashed + " was never animated, reapplying");
+                mLastStartedTransitionType = animationType;
+                createAnimToIsStashed(isStashed, duration, animationType,
+                        /* shouldDelayBackground = */ false,
+                        computeTaskbarJankMonitorTag(changedFlags));
+                return mAnimator;
+            }
             return null;
         }
 
