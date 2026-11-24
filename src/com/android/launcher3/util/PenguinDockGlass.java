@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
+import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
@@ -21,6 +22,17 @@ import com.android.internal.graphics.drawable.BackgroundBlurDrawable;
 public final class PenguinDockGlass extends Drawable {
     /** Shared dock material in renderengine BlurFilter; opt-in, independent of COS style. */
     public static final int MATERIAL = 11;
+    /**
+     * Penguin Laboratory's navigator glass in renderengine BlurFilter: a light frost whose rim
+     * bends what lies behind it, under a wash and a top-lit rim drawn here, as the Lab's floating
+     * tab bar is drawn.
+     */
+    public static final int NAVIGATOR_MATERIAL = 12;
+    /** The Lab tab bar's wash in light theme: white at 42%. */
+    private static final int NAVIGATOR_LIGHT_WASH = 0x6BFFFFFF;
+    /** The Lab tab bar's wash in dark theme, over its surface-container-high colour. */
+    private static final float NAVIGATOR_DARK_WASH_ALPHA = 0.55f;
+    private static final float NAVIGATOR_RIM_DP = 1.2f;
     private static final int DOCK_BLUR_DP = 6;
     private static final int SEARCH_BLUR_DP = 16;
     /** Close to the glass tone over a blurred backdrop. */
@@ -36,6 +48,11 @@ public final class PenguinDockGlass extends Drawable {
     /** Frames the plain fill stays after the glass turns live. */
     private int liveWarmupFrames;
     private final boolean searchPanel;
+    private boolean navigator;
+    private LinearGradient navigatorRim;
+    private float navigatorRimTop = Float.NaN;
+    private float navigatorRimBottom = Float.NaN;
+    private boolean navigatorRimDark;
     private boolean capsule;
     /** Fixed corner radius in px, or -1 for the dock's. */
     private float cornerRadius = -1f;
@@ -152,7 +169,7 @@ public final class PenguinDockGlass extends Drawable {
             viewAlpha = viewAlpha();
             boolean changed = updateBlur(density);
             blur.setCornerRadius(radius);
-            blur.setMaterial(MATERIAL);
+            blur.setMaterial(navigator ? NAVIGATOR_MATERIAL : MATERIAL);
             blur.setColor(0);
             blur.setBounds(getBounds());
             blur.draw(canvas);
@@ -169,6 +186,10 @@ public final class PenguinDockGlass extends Drawable {
         // One shared home-dock material and radius for every glass surface. Without a live
         // blur, a plain fill stands in for the glass.
         boolean noGlass = !enabled || (blur == null && live > 0f);
+        if (navigator) {
+            drawNavigator(canvas, radius, density, noGlass, live);
+            return;
+        }
         int fill = noGlass ? FALLBACK_FILL : FLAT_FILL;
         float fillAlpha = noGlass ? 1f : 1f - live;
         paint.setColor(fill);
@@ -178,6 +199,74 @@ public final class PenguinDockGlass extends Drawable {
         // much as the plain fill stands in for it.
         float rimAlpha = !noGlass && LiquidGlass.isIosGlass(owner.getContext()) ? fillAlpha : 1f;
         drawRim(canvas, radius, density, rimAlpha);
+    }
+
+    /**
+     * The Lab tab bar's wash and rim over the navigator glass. The wash is the same with or
+     * without a live blur, so the dock reads the same when it has to stand in for the glass; the
+     * plain fill only thickens it then, so the icons stay readable.
+     */
+    private void drawNavigator(Canvas canvas, float radius, float density, boolean noGlass,
+            float live) {
+        boolean dark = com.android.launcher3.Utilities.isDarkTheme(owner.getContext());
+        int wash = dark ? withAlpha(owner.getContext().getColor(
+                android.R.color.system_surface_container_high_dark), NAVIGATOR_DARK_WASH_ALPHA)
+                : NAVIGATOR_LIGHT_WASH;
+        // While flat (the dock is being blurred as a view), the plain fill stands in for the glass.
+        float plain = noGlass ? 1f : 1f - live;
+        if (plain > 0f) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(FALLBACK_FILL);
+            paint.setAlpha(Math.round(colorAlpha(FALLBACK_FILL, alpha) * plain));
+            canvas.drawRoundRect(rect, radius, radius, paint);
+        }
+        paint.setStyle(Paint.Style.FILL);
+        paint.setColor(wash);
+        paint.setAlpha(colorAlpha(wash, alpha));
+        canvas.drawRoundRect(rect, radius, radius, paint);
+
+        // Brightest along the top where the light falls, faint down the sides, a little back at
+        // the bottom. Inset by half the stroke so all of it lies on the glass.
+        float stroke = NAVIGATOR_RIM_DP * density;
+        rect.inset(stroke / 2f, stroke / 2f);
+        if (navigatorRim == null || navigatorRimTop != rect.top
+                || navigatorRimBottom != rect.bottom || navigatorRimDark != dark) {
+            navigatorRimTop = rect.top;
+            navigatorRimBottom = rect.bottom;
+            navigatorRimDark = dark;
+            navigatorRim = new LinearGradient(0f, rect.top, 0f, rect.bottom,
+                    new int[] {
+                        white(dark ? 0.42f : 0.95f),
+                        white(dark ? 0.08f : 0.25f),
+                        white(dark ? 0.20f : 0.60f),
+                    },
+                    new float[] {0f, 0.5f, 1f}, Shader.TileMode.CLAMP);
+        }
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(stroke);
+        paint.setColor(0xFFFFFFFF);
+        paint.setShader(navigatorRim);
+        paint.setAlpha(alpha);
+        float inner = Math.max(0f, radius - stroke / 2f);
+        canvas.drawRoundRect(rect, inner, inner, paint);
+        paint.setShader(null);
+    }
+
+    private static int white(float a) { return (Math.round(a * 255f) << 24) | 0xFFFFFF; }
+
+    private static int withAlpha(int color, float a) {
+        return (Math.round(a * 255f) << 24) | (color & 0xFFFFFF);
+    }
+
+    /**
+     * Uses Penguin Laboratory's navigator glass (its floating tab bar) in place of the home
+     * dock's material: a light frost that bends what lies behind its rim, a wash and a lit rim.
+     */
+    public void setNavigator(boolean navigator) {
+        if (this.navigator == navigator) return;
+        this.navigator = navigator;
+        invalidateSelf();
+        owner.invalidate();
     }
 
     private void drawRim(Canvas canvas, float radius, float density, float rimAlpha) {
@@ -202,7 +291,8 @@ public final class PenguinDockGlass extends Drawable {
         boolean track = live == 0f && alpha > 0 && viewAlpha > 0f;
         // Spotlight is a large reading panel, so it needs a stronger frost than the dock.
         int dp = blurDp >= 0 ? blurDp : searchPanel ? SEARCH_BLUR_DP : DOCK_BLUR_DP;
-        int blurRadius = track ? 1 : Math.round(dp * density);
+        // SurfaceFlinger skips a region with no blur, and the navigator glass's rim lens with it.
+        int blurRadius = track ? 1 : Math.max(navigator ? 1 : 0, Math.round(dp * density));
         int blurAlpha = track ? 1 : Math.round(alpha * live * viewAlpha);
         boolean changed = blur.getAlpha() != blurAlpha || blurRadius != lastBlurRadius;
         lastBlurRadius = blurRadius;

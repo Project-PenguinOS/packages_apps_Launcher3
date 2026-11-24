@@ -19,7 +19,6 @@ object PenguinTaskbarSettings {
     private const val AUTOHIDE = "penguin_taskbar_autohide"
     private const val DOCK = "penguin_taskbar_dock"
     private const val DOCK_BOUNCE = "penguin_taskbar_dock_bounce"
-    private const val DOCK_GLASS = "penguin_taskbar_dock_glass"
     private const val DOCK_BLUR = "penguin_taskbar_dock_blur"
 
     private const val DEFAULT_HOVER_DELAY_MS = 150
@@ -40,7 +39,7 @@ object PenguinTaskbarSettings {
 
     /** Settings the taskbar is built from, so it is recreated when one of them changes. */
     @JvmField
-    val DOCK_URIS: List<Uri> = listOf(DOCK, DOCK_BOUNCE, DOCK_GLASS, DOCK_BLUR).map(Settings.Secure::getUriFor)
+    val DOCK_URIS: List<Uri> = listOf(DOCK, DOCK_BOUNCE, DOCK_BLUR).map(Settings.Secure::getUriFor)
 
     /** How long the pointer rests at the bottom edge before the hidden taskbar is revealed. */
     @JvmStatic
@@ -96,10 +95,7 @@ object PenguinTaskbarSettings {
     /** Whether the dock's icons hop when the pointer moves over them. */
     @JvmStatic fun isDockBounceEnabled(context: Context): Boolean = get(context, DOCK_BOUNCE, 1) != 0
 
-    /** Whether the dock is frosted glass with a lit rim. */
-    @JvmStatic fun isDockGlassEnabled(context: Context): Boolean = get(context, DOCK_GLASS, 0) != 0
-
-    /** How strongly the glass dock blurs what is behind it, from 0 (clear glass) to 1. */
+    /** How strongly the dock's glass blurs what is behind it, from 0 (clear glass) to 1. */
     @JvmStatic
     fun dockBlurFraction(context: Context): Float =
         get(context, DOCK_BLUR, DEFAULT_DOCK_BLUR_PERCENT).coerceIn(0, 100) / 100f

@@ -23,20 +23,17 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Rect
 import android.graphics.RectF
-import android.view.WindowManager
 import com.android.app.animation.Interpolators
 import com.android.launcher3.Flags
 import com.android.launcher3.R
 import com.android.launcher3.Utilities
 import com.android.launcher3.Utilities.mapRange
 import com.android.launcher3.Utilities.mapToRange
-import com.android.internal.graphics.drawable.BackgroundBlurDrawable
 import com.android.launcher3.icons.GraphicsUtils.setColorAlphaBound
 import com.android.launcher3.taskbar.TaskbarManagerImpl.NAVIGATION_BAR_HINT_URI
 import com.android.launcher3.taskbar.TaskbarPinningController.Companion.PINNING_PERSISTENT
 import com.android.launcher3.taskbar.TaskbarPinningController.Companion.PINNING_TRANSIENT
 import com.android.launcher3.taskbar.Utilities.getShapedTaskbarRadius
-import com.android.launcher3.util.LiquidGlass
 import com.android.launcher3.util.SettingsCache
 import com.penguin.dex.launcher.DexDock
 import kotlin.math.min
@@ -96,21 +93,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
     private val stashedHandleHeight: Int
         get() = if (context.isDesktopDock) 0 else navBarHintHeight
 
-    // Read on first draw, once the taskbar knows it is on a desktop. It is recreated on changes.
-    private val isDockGlass by lazy {
-        true
-    }
-    private val dockBlurRadius by lazy {
-        Math.round(
-            context.resources.displayMetrics.density * 10f *
-                PenguinTaskbarSettings.dockBlurFraction(context)
-        )
-    }
-    private val isCrossWindowBlurEnabled: Boolean
-        get() = context.getSystemService(WindowManager::class.java)?.isCrossWindowBlurEnabled == true
-    private var dockBlur: BackgroundBlurDrawable? = null
     private val dockBlurBounds = Rect()
-    private val dockGlassPaint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     init {
         paint.color = context.getColor(R.color.taskbar_background)
@@ -318,12 +301,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
         val horizontalInset = fullWidth * widthInsetPercentage
         lastDrawnTransientRect.inset(horizontalInset, 0f)
 
-        if (isDockGlass) {
-            drawDockGlass(canvas, radius)
-            return
-        }
-        canvas.drawRoundRect(lastDrawnTransientRect, radius, radius, paint)
-        canvas.drawRoundRect(lastDrawnTransientRect, radius, radius, strokePaint)
+        drawDockGlass(canvas, radius)
     }
 
     /**
@@ -351,31 +329,20 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
         lastDrawnTransientRect.inset(fullWidth * widthInsetPercentage, 0f)
         val radius =
             min(context.resources.getDimension(R.dimen.ipad_dock_radius), height * 0.4f)
-        strokePaint.alpha = (paint.alpha * STROKE_ALPHA) / 255
-        if (isDockGlass) {
-            drawDockGlass(canvas, radius)
-            return
-        }
-        val newShadowAlpha =
-            mapToRange(paint.alpha.toFloat(), 0f, 255f, 0f, shadowAlpha, Interpolators.LINEAR)
-        paint.setShadowLayer(
-            shadowBlur,
-            0f,
-            keyShadowDistance,
-            setColorAlphaBound(Color.BLACK, Math.round(newShadowAlpha)),
-        )
-        canvas.drawRoundRect(lastDrawnTransientRect, radius, radius, paint)
-        canvas.drawRoundRect(lastDrawnTransientRect, radius, radius, strokePaint)
+        drawDockGlass(canvas, radius)
     }
 
     /**
-     * Liquid Glass dock: the windows behind it blurred as strongly as Settings asks, a thin tint of
-     * the taskbar's colour, a hairline border and a lit rim. The border, rim and tint stay with no
-     * blur at all, so the dock still reads as glass. Without cross-window blur, the tint thickens
-     * so the icons stay readable.
+     * The dock is Penguin Laboratory's navigator glass, like iPadOS's dock: the windows behind it
+     * lightly blurred (as much as Settings > Taskbar > Blur intensity asks, up to the Lab bar's
+     * 10dp) and bent at its rim, under a light wash and a top-lit rim. Read once; the taskbar is
+     * recreated when the setting changes.
      */
     private val sharedDockGlass by lazy {
-        com.android.launcher3.util.PenguinDockGlass(context.dragLayer)
+        com.android.launcher3.util.PenguinDockGlass(context.dragLayer).apply {
+            setNavigator(true)
+            setBlurDp(Math.round(DOCK_MAX_BLUR_DP * PenguinTaskbarSettings.dockBlurFraction(context)))
+        }
     }
 
     private fun drawDockGlass(canvas: Canvas, radius: Float) {
@@ -383,17 +350,6 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
         sharedDockGlass.bounds = dockBlurBounds
         sharedDockGlass.alpha = paint.alpha
         sharedDockGlass.draw(canvas)
-    }
-
-    private fun createDockBlur(): BackgroundBlurDrawable? {
-        if (!isCrossWindowBlurEnabled) return null
-        val viewRoot = context.dragLayer.viewRootImpl ?: return null
-        return viewRoot.createBackgroundBlurDrawable().apply {
-            setBlurRadius(dockBlurRadius)
-            setMaterial(com.android.launcher3.util.PenguinDockGlass.MATERIAL)
-            setColor(Color.TRANSPARENT)
-            dockBlur = this
-        }
     }
 
     /**
@@ -409,7 +365,7 @@ class TaskbarBackgroundRenderer(private val context: TaskbarActivityContext) {
         private const val STROKE_ALPHA = 51
         private const val DARK_THEME_SHADOW_ALPHA = 51f
         private const val LIGHT_THEME_SHADOW_ALPHA = 25f
-        private const val DOCK_GLASS_TINT_ALPHA = 80
-        private const val DOCK_GLASS_FALLBACK_ALPHA = 200
+        /** The Lab tab bar's frost; Settings' Blur intensity scales it down from here. */
+        private const val DOCK_MAX_BLUR_DP = 10f
     }
 }
