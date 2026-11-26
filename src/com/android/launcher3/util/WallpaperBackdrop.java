@@ -8,15 +8,18 @@ import android.app.WallpaperManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
+import android.view.ViewTreeObserver;
 
 import androidx.annotation.MainThread;
 import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
@@ -55,7 +58,12 @@ public final class WallpaperBackdrop {
     }
 
     private final WallpaperManager mWallpaperManager;
-    private final WeakHashMap<View, Boolean> mClients = new WeakHashMap<>();
+    /** Each client with where it was last sampled from, or null. */
+    private final WeakHashMap<View, PointF> mClients = new WeakHashMap<>();
+    private final WeakHashMap<ViewTreeObserver, Boolean> mObservers = new WeakHashMap<>();
+    private final ViewTreeObserver.OnScrollChangedListener mScrollListener =
+            this::onScrollChanged;
+    private final PointF mTmpOrigin = new PointF();
     /** By blur radius in px, for the current screen size. */
     private final SparseArray<Entry> mEntries = new SparseArray<>();
     private int mWidth, mHeight;
@@ -82,7 +90,13 @@ public final class WallpaperBackdrop {
     @MainThread
     @Nullable
     public Bitmap getBitmap(View client, int width, int height, int blurPx) {
-        mClients.put(client, Boolean.TRUE);
+        if (!mClients.containsKey(client)) mClients.put(client, null);
+        if (client.isAttachedToWindow()) {
+            ViewTreeObserver observer = client.getViewTreeObserver();
+            if (observer.isAlive() && mObservers.put(observer, Boolean.TRUE) == null) {
+                observer.addOnScrollChangedListener(mScrollListener);
+            }
+        }
         if (width <= 0 || height <= 0) return null;
         if (width != mWidth || height != mHeight) {
             mWidth = width;
@@ -96,6 +110,54 @@ public final class WallpaperBackdrop {
             load(blurPx, entry);
         }
         return entry.unavailable ? null : entry.bitmap;
+    }
+
+    /**
+     * Sets {@code out} to where {@code client} rests on the screen (layout and scroll, no
+     * transforms), the point its backdrop is sampled from. A scroll moves it without redrawing
+     * it, so the client is redrawn whenever a scroll changes this point. Returns false when the
+     * client is not attached.
+     */
+    @MainThread
+    public boolean getRestingOrigin(View client, PointF out) {
+        if (!computeOrigin(client, out)) return false;
+        PointF last = mClients.get(client);
+        if (last == null) {
+            last = new PointF();
+            mClients.put(client, last);
+        }
+        last.set(out);
+        return true;
+    }
+
+    private static boolean computeOrigin(View client, PointF out) {
+        View root = client.getRootView();
+        if (root == null || root == client) return false;
+        float x = 0, y = 0;
+        for (View v = client; v != root; ) {
+            if (!(v.getParent() instanceof View parent)) return false;
+            x += v.getLeft() - parent.getScrollX();
+            y += v.getTop() - parent.getScrollY();
+            v = parent;
+        }
+        out.set(x, y);
+        return true;
+    }
+
+    /**
+     * Redraws each client a scroll has moved. Paged views do not report their scroll to the view
+     * tree, so they call this themselves; view tree scrolls run it before the frame is drawn.
+     */
+    @MainThread
+    public void onScrollChanged() {
+        for (Map.Entry<View, PointF> entry : new ArrayList<>(mClients.entrySet())) {
+            View v = entry.getKey();
+            PointF last = entry.getValue();
+            if (v == null || last == null || !v.isAttachedToWindow()) continue;
+            if (computeOrigin(v, mTmpOrigin) && !mTmpOrigin.equals(last.x, last.y)) {
+                v.invalidate();
+            }
+        }
     }
 
     @MainThread

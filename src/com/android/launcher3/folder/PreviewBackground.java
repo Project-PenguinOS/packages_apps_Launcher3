@@ -36,6 +36,7 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
+import android.graphics.PointF;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.RadialGradient;
@@ -577,6 +578,7 @@ public class PreviewBackground extends DelegatedCellDrawing {
     private final Paint mBackdropPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint mRimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Matrix mBackdropMatrix = new Matrix();
+    private final PointF mBackdropOrigin = new PointF();
     private final RectF mRimBounds = new RectF();
     private Bitmap mBackdropBitmap;
     private BitmapShader mBackdropShader;
@@ -601,17 +603,14 @@ public class PreviewBackground extends DelegatedCellDrawing {
             mBackdropPaint.setShader(mBackdropShader);
         }
         // Sample where the folder rests on the screen (layout and scroll, no transforms): the
-        // tile then moves and scales with the icon in transitions, as a part of it.
-        float originX = 0, originY = 0;
-        for (View v = icon; v != root; ) {
-            if (!(v.getParent() instanceof View parent)) return false;
-            originX += v.getLeft() - parent.getScrollX();
-            originY += v.getTop() - parent.getScrollY();
-            v = parent;
+        // tile then moves and scales with the icon in transitions, as a part of it, and stays
+        // pinned to the wallpaper while the home screen scrolls.
+        if (!WallpaperBackdrop.get(mContext).getRestingOrigin(icon, mBackdropOrigin)) {
+            return false;
         }
         mBackdropMatrix.setScale(root.getWidth() / (float) bitmap.getWidth(),
                 root.getHeight() / (float) bitmap.getHeight());
-        mBackdropMatrix.postTranslate(-originX, -originY);
+        mBackdropMatrix.postTranslate(-mBackdropOrigin.x, -mBackdropOrigin.y);
         mBackdropShader.setLocalMatrix(mBackdropMatrix);
         drawShapeInBounds(canvas, bounds, mScale, mBackdropPaint);
 

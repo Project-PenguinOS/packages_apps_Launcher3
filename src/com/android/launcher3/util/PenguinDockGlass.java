@@ -9,6 +9,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PointF;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
@@ -97,6 +98,7 @@ public final class PenguinDockGlass extends Drawable {
     private boolean backdropActive;
     private final Paint backdropPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Matrix backdropMatrix = new Matrix();
+    private final PointF backdropOrigin = new PointF();
     private Bitmap backdropBitmap;
     private BitmapShader backdropShader;
 
@@ -128,16 +130,13 @@ public final class PenguinDockGlass extends Drawable {
         }
         // Sample where the owner rests on the screen (layout and scroll, no transforms), so the
         // glass travels with it as a part of it.
-        float originX = 0, originY = 0;
-        for (View v = owner; v != root; ) {
-            if (!(v.getParent() instanceof View parent)) return false;
-            originX += v.getLeft() - parent.getScrollX();
-            originY += v.getTop() - parent.getScrollY();
-            v = parent;
+        if (!com.android.launcher3.util.WallpaperBackdrop.get(owner.getContext())
+                .getRestingOrigin(owner, backdropOrigin)) {
+            return false;
         }
         backdropMatrix.setScale(root.getWidth() / (float) bitmap.getWidth(),
                 root.getHeight() / (float) bitmap.getHeight());
-        backdropMatrix.postTranslate(-originX, -originY);
+        backdropMatrix.postTranslate(-backdropOrigin.x, -backdropOrigin.y);
         backdropShader.setLocalMatrix(backdropMatrix);
         backdropPaint.setAlpha(alpha);
         rect.set(getBounds());

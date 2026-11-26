@@ -159,6 +159,7 @@ import com.android.launcher3.util.ObjectWrapper;
 import com.android.launcher3.util.OverlayEdgeEffect;
 import com.android.launcher3.util.RunnableList;
 import com.android.launcher3.util.Thunk;
+import com.android.launcher3.util.WallpaperBackdrop;
 import com.android.launcher3.util.ViewEx;
 import com.android.launcher3.util.WallpaperOffsetInterpolator;
 import com.android.launcher3.widget.LauncherAppWidgetHostView;
@@ -1512,6 +1513,8 @@ public class Workspace<T extends View & PageIndicator> extends PagedView<T>
     @Override
     protected void onScrollChanged(int l, int t, int oldl, int oldt) {
         super.onScrollChanged(l, t, oldl, oldt);
+        // Folder and glass tiles sample the wallpaper where they rest; a page scroll moves them.
+        WallpaperBackdrop.get(getContext()).onScrollChanged();
 
         // Update the page indicator progress.
         // Unlike from other states, we show the page indicator when transitioning from HINT_STATE.
