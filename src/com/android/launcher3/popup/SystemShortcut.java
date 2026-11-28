@@ -909,8 +909,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
                 mItemInfo.title = newName;
                 CustomAppNameStore.saveCustomName(context, mItemInfo, newName);
                 if (mItemInfo instanceof WorkspaceItemInfo wsInfo) {
-                    LauncherAppState.getInstance(context).getModel().getWriter(false, null, null)
-                            .updateItemInDatabase(wsInfo);
+                    mTarget.getModelWriter().updateItemInDatabase(wsInfo);
                 }
             }
 
@@ -929,8 +928,7 @@ public abstract class SystemShortcut<T extends ActivityContext> extends ItemInfo
 
             if (mItemInfo instanceof WorkspaceItemInfo && systemTitle != null) {
                 WorkspaceItemInfo wsInfo = (WorkspaceItemInfo) mItemInfo;
-                LauncherAppState.getInstance(context).getModel().getWriter(false, null, null)
-                        .updateItemInDatabase(wsInfo);
+                mTarget.getModelWriter().updateItemInDatabase(wsInfo);
             }
 
             forceUiUpdate(context);
