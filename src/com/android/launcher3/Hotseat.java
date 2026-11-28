@@ -26,6 +26,8 @@ import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -116,6 +118,10 @@ public class Hotseat extends CellLayout implements Insettable {
     private PenguinDockGlass mSearchPillGlass;
     /** Glass of the large-screen Search pill that stands in the QSB slot; null otherwise. */
     private @Nullable PenguinDockGlass mQsbPillGlass;
+    /** The optional hotseat background from Settings, drawn behind the dock row only. */
+    private @Nullable Drawable mHotseatBackground;
+    private int mHotseatBackgroundAlpha;
+    private final Rect mDockRect = new Rect();
     /** The Search pill's centre as a distance from the bottom of the home screen; -1 if none. */
     private int mSearchPillCentreFromBottom = -1;
     private boolean mLiveGlassWhileScaled;
@@ -150,8 +156,10 @@ public class Hotseat extends CellLayout implements Insettable {
      * glass fill that blurs along with the icons.
      */
     public void setDockContentBlur(float progress) {
+        if (mDockContentBlur == progress) return;
         mDockContentBlur = progress;
         updateGlassFlatProgress();
+        if (mHotseatBackground != null) invalidate();
     }
 
     /** Keeps the live glass while scaled by a RenderThread animation, which the glass follows. */
@@ -179,23 +187,53 @@ public class Hotseat extends CellLayout implements Insettable {
         requestLayout();
     }
 
+    /**
+     * Shows the optional hotseat background behind the dock row, at an alpha from 0 to 255.
+     * It is drawn here rather than as this view's background: the view also holds the Search
+     * pill and the blur margin above the dock, and stays visible in the app drawer, where only
+     * the dock content fades out.
+     */
+    public void setHotseatBackground(@Nullable Drawable background, int alpha) {
+        mHotseatBackground = background == null ? null : background.mutate();
+        mHotseatBackgroundAlpha = alpha;
+        invalidate();
+    }
+
     @Override
     protected void dispatchDraw(android.graphics.Canvas canvas) {
-        if (mDockCompanion != null && mNaturalDock) {
-            View icons = getShortcutsAndWidgets();
+        View icons = getShortcutsAndWidgets();
+        boolean naturalDock = mDockCompanion != null && mNaturalDock;
+        if (naturalDock) {
             int iconHeight = mActivity.getDeviceProfile().getWorkspaceProfile().getIconSizePx();
             int gap = PenguinDockMetrics.glassPaddingPx(iconHeight);
             int centre = (icons.getTop() + icons.getBottom()) / 2;
             int verticalPad = Math.round(12 * getResources().getDisplayMetrics().density);
-            mDockGlass.setBounds(Math.min(icons.getLeft(), mDockCompanion.getLeft()) - gap,
+            mDockRect.set(Math.min(icons.getLeft(), mDockCompanion.getLeft()) - gap,
                     centre - iconHeight / 2 - verticalPad,
                     Math.max(icons.getRight(), mDockCompanion.getRight()) + gap,
                     centre + iconHeight / 2 + verticalPad);
+            mDockGlass.setBounds(mDockRect);
             mDockGlass.setWallpaperBackdrop(true);
             mDockGlass.setAlpha(Math.round(255 * icons.getAlpha()));
             mDockGlass.draw(canvas);
-            mDockCompanion.setAlpha(icons.getAlpha());
+        } else {
+            mDockRect.set(icons.getLeft(), icons.getTop(), icons.getRight(), icons.getBottom());
         }
+        // Fades with the dock icons, and out as home blurs behind the app drawer, where its
+        // hard edge would otherwise show through the blurred dock.
+        float backgroundAlpha = icons.getAlpha() * (1f - mDockContentBlur);
+        if (mHotseatBackground != null && icons.getVisibility() == View.VISIBLE
+                && backgroundAlpha > 0f && !mDockRect.isEmpty()) {
+            if (naturalDock && mHotseatBackground instanceof GradientDrawable shape) {
+                // The dock glass's corners.
+                shape.setCornerRadius(Math.min(28 * getResources().getDisplayMetrics().density,
+                        mDockRect.height() * 0.4f));
+            }
+            mHotseatBackground.setBounds(mDockRect);
+            mHotseatBackground.setAlpha(Math.round(mHotseatBackgroundAlpha * backgroundAlpha));
+            mHotseatBackground.draw(canvas);
+        }
+        if (naturalDock) mDockCompanion.setAlpha(icons.getAlpha());
         super.dispatchDraw(canvas);
     }
 
