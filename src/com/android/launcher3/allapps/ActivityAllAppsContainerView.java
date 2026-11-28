@@ -340,6 +340,18 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         return !LauncherPrefs.SEARCH_BAR_BOTTOM.get(mActivityContext.asContext());
     }
 
+    /**
+     * How far the search box at the bottom of the drawer reaches above the navigation bar, or 0
+     * when it is at the top or not laid out.
+     */
+    public int getBottomSearchBarHeight() {
+        if (isSearchBarAtTop() || mSearchContainer == null
+                || mSearchContainer.getVisibility() != VISIBLE || mSearchContainer.getHeight() == 0) {
+            return 0;
+        }
+        return Math.max(0, getHeight() - mSearchContainer.getTop() - mInsets.bottom);
+    }
+
     private void moveSearchBarToBottom() {
         if (!(mSearchContainer.getLayoutParams() instanceof RelativeLayout.LayoutParams searchLp)) {
             return;
@@ -361,6 +373,12 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 (v, l, t, r, b, oldL, oldT, oldR, oldB) -> {
                     if (b - t != oldB - oldT || t != oldT) {
                         mAH.forEach(AdapterHolder::applyPadding);
+                        // The pause work apps button sits above the box.
+                        WorkUtilityView workButton = mWorkManager.getWorkUtilityView();
+                        if (workButton != null) {
+                            workButton.setInsets(mActivityContext.getDeviceProfile().getInsets());
+                            workButton.requestLayout();
+                        }
                     }
                 });
 
