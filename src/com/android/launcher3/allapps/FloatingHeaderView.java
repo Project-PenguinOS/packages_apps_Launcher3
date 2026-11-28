@@ -94,6 +94,8 @@ public class FloatingHeaderView extends LinearLayout implements
     protected PersonalWorkSlidingTabStrip mTabLayout;
     private AllAppsRecyclerView mMainRV;
     private AllAppsRecyclerView mWorkRV;
+    /** The category tiles' list, when the drawer shows them. */
+    private AllAppsRecyclerView mCategoriesRV;
     private SearchRecyclerView mSearchRV;
     private AllAppsRecyclerView mCurrentRV;
     protected int mSnappedScrolledY;
@@ -255,6 +257,11 @@ public class FloatingHeaderView extends LinearLayout implements
         reset(false);
     }
 
+    /** Sets the category tiles' list, or null when the drawer does not show them. */
+    void setCategoriesRV(AllAppsRecyclerView categoriesRV) {
+        mCategoriesRV = categoriesRV;
+    }
+
     /** Whether this header has been set up previously. */
     boolean isSetUp() {
         return mMainRV != null;
@@ -268,7 +275,9 @@ public class FloatingHeaderView extends LinearLayout implements
         }
         mCurrentRV =
                 rvType == AdapterHolder.MAIN ? mMainRV
-                : rvType == AdapterHolder.WORK ? mWorkRV : mSearchRV;
+                : rvType == AdapterHolder.WORK ? mWorkRV
+                : rvType == AdapterHolder.CATEGORIES && mCategoriesRV != null ? mCategoriesRV
+                : mSearchRV;
         mCurrentRV.addOnScrollListener(mOnScrollListener);
         maybeSetTabVisibility(rvType == AdapterHolder.SEARCH ? GONE : VISIBLE);
 
@@ -381,6 +390,9 @@ public class FloatingHeaderView extends LinearLayout implements
         }
         if (mWorkRV != null) {
             mWorkRV.setClipBounds(mRVClip);
+        }
+        if (mCategoriesRV != null && mCategoriesRV != mWorkRV) {
+            mCategoriesRV.setClipBounds(mRVClip);
         }
         if (mSearchRV != null) {
             mSearchRVClip.top = mRVClip.top;

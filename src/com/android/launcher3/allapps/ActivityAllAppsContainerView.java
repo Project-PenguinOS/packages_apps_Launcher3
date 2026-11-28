@@ -193,6 +193,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
     private View mBottomSheetHandleArea;
     private boolean mHasWorkApps;
     private boolean mUsingCategoriesTab;
+    /** Personal, Work and Categories: a work profile and the category tab together. */
+    private boolean mUsingThreePages;
     private boolean mHasPrivateApps;
     private float[] mBottomSheetCornerRadii;
     private ScrimView mScrimView;
@@ -728,7 +730,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                     mFastScroller, ALL_APPS_SCROLLER);
         }
         // Header keeps track of active recycler view to properly render header protection.
-        mHeader.setActiveRV(currentActivePage);
+        mHeader.setActiveRV(holderTypeForPage(currentActivePage));
 
         mWorkManager.onActivePageChanged(holderTypeForPage(currentActivePage));
     }
@@ -748,7 +750,9 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         boolean showTabs = shouldShowTabs();
         // Work apps can arrive after the first bind and turn the category page into a work page.
         boolean categoriesTab = showTabs && showCategoriesTab();
-        if (showTabs == mUsingTabs && categoriesTab == mUsingCategoriesTab && !force) {
+        boolean threePages = showTabs && showThreePages();
+        if (showTabs == mUsingTabs && categoriesTab == mUsingCategoriesTab
+                && threePages == mUsingThreePages && !force) {
             Log.d(TAG, "rebindAdapters: Not needed.");
             return;
         }
@@ -756,9 +760,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         // replaceAppsRVcontainer() needs to use both mUsingTabs value to remove the old view AND
         // showTabs value to create new view. Hence the mUsingTabs new value assignment MUST happen
         // after this call.
-        replaceAppsRVContainer(showTabs);
+        replaceAppsRVContainer(showTabs, threePages);
         mUsingTabs = showTabs;
         mUsingCategoriesTab = categoriesTab;
+        mUsingThreePages = threePages;
 
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.MAIN).mRecyclerView);
         mAllAppsStore.unregisterIconContainer(mAH.get(AdapterHolder.WORK).mRecyclerView);
@@ -768,6 +773,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         final AllAppsRecyclerView mainRecyclerView;
         // The pager's second page: work apps, or the auto-categorized folder tiles.
         final AllAppsRecyclerView secondRecyclerView;
+        // The category tiles' page beside Personal and Work, when there are three.
+        AllAppsRecyclerView thirdRecyclerView = null;
         if (mUsingTabs) {
             mainRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(0);
             secondRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(1);
@@ -781,7 +788,13 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 mAH.get(AdapterHolder.WORK)
                         .setup(secondRecyclerView, mWorkManager.getItemInfoMatcher());
                 secondRecyclerView.setId(R.id.apps_list_view_work);
-                mAH.get(AdapterHolder.CATEGORIES).mRecyclerView = null;
+                if (mUsingThreePages) {
+                    thirdRecyclerView = (AllAppsRecyclerView) mViewPager.getChildAt(2);
+                    mAH.get(AdapterHolder.CATEGORIES).setup(thirdRecyclerView, mPersonalMatcher);
+                    thirdRecyclerView.setId(R.id.apps_list_view_categories);
+                } else {
+                    mAH.get(AdapterHolder.CATEGORIES).mRecyclerView = null;
+                }
                 if (enableExpandingPauseWorkButton()
                         || FeatureFlags.ENABLE_EXPANDING_PAUSE_WORK_BUTTON.get()) {
                     mAH.get(AdapterHolder.WORK).mRecyclerView.addOnScrollListener(
@@ -791,6 +804,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             mViewPager.getPageIndicator().setActiveMarker(AdapterHolder.MAIN);
             TextView personalTab = findViewById(R.id.tab_personal);
             TextView secondTab = findViewById(R.id.tab_work);
+            TextView categoriesTabView = findViewById(R.id.tab_categories);
+            categoriesTabView.setVisibility(mUsingThreePages ? VISIBLE : GONE);
             if (showCategoriesTab()) {
                 // The tab strip is shared with the work profile, so retitle it in place rather than
                 // duplicate the layout.
@@ -821,6 +836,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                             .log(LAUNCHER_ALLAPPS_TAP_ON_WORK_TAB);
                 }
             });
+            categoriesTabView.setOnClickListener((View view) -> {
+                Log.d(TAG, "rebindAdapters: " + "Clicked categories tab.");
+                mViewPager.snapToPage(CATEGORIES_PAGE);
+            });
             setDeviceManagementResources();
             if (mHeader.isSetUp()) {
                 onActivePageChanged(mViewPager.getNextPage());
@@ -836,6 +855,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
                 mainRecyclerView,
                 secondRecyclerView,
                 mActivityContext.getActivityComponent().getSharedAppsPool());
+        if (thirdRecyclerView != null) {
+            thirdRecyclerView.setRecycledViewPool(
+                    mActivityContext.getActivityComponent().getSharedAppsPool());
+        }
         setupHeader();
 
         if (isSearchBarFloating()) {
@@ -872,8 +895,8 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         mainRecyclerView.updatePoolSize();
     }
 
-    private void replaceAppsRVContainer(boolean showTabs) {
-        Log.d(TAG, "replaceAppsRVContainer: showTabs: " + showTabs);
+    private void replaceAppsRVContainer(boolean showTabs, boolean threePages) {
+        Log.d(TAG, "replaceAppsRVContainer: showTabs: " + showTabs + " threePages: " + threePages);
         for (int i = AdapterHolder.MAIN; i < mAH.size(); i++) {
             if (i == AdapterHolder.SEARCH) {
                 continue;
@@ -893,6 +916,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         rvParent.addView(rvContainer, index);
         if (showTabs) {
             mViewPager = (AllAppsPagedView) rvContainer;
+            if (threePages) {
+                // The layout holds the two profile pages; the category tiles take a third.
+                getLayoutInflater().inflate(R.layout.all_apps_rv_layout, mViewPager, true);
+            }
             mViewPager.initParentViews(this);
             mViewPager.getPageIndicator().setOnActivePageChangedListener(this);
             mViewPager.setOutlineProvider(new ViewOutlineProvider() {
@@ -910,7 +937,10 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             });
 
             mWorkManager.reset();
-            post(() -> getSecondPageHolder().applyPadding());
+            post(() -> {
+                getSecondPageHolder().applyPadding();
+                if (mUsingThreePages) mAH.get(AdapterHolder.CATEGORIES).applyPadding();
+            });
         } else {
             mWorkManager.detachWorkUtilityViews();
             mViewPager = null;
@@ -929,11 +959,12 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
 
         mHeader.setVisibility(View.VISIBLE);
         boolean tabsHidden = !mUsingTabs;
+        mHeader.setCategoriesRV(mAH.get(AdapterHolder.CATEGORIES).mRecyclerView);
         mHeader.setup(
                 mAH.get(AdapterHolder.MAIN).mRecyclerView,
                 getSecondPageHolder().mRecyclerView,
                 (SearchRecyclerView) mAH.get(SEARCH).mRecyclerView,
-                getCurrentPage(),
+                getCurrentHolderType(),
                 tabsHidden);
 
         int padding = mHeader.getMaxTranslation();
@@ -1319,7 +1350,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         if (!mUsingTabs || isPersonalTab()) {
             return mAH.get(AdapterHolder.MAIN).mRecyclerView;
         } else {
-            return getSecondPageHolder().mRecyclerView;
+            return mAH.get(holderTypeForPage(mViewPager.getNextPage())).mRecyclerView;
         }
     }
 
@@ -1447,7 +1478,7 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
             mHeader.setVisibility(VISIBLE);
         }
         if (mHeader.isSetUp()) {
-            mHeader.setActiveRV(getCurrentPage());
+            mHeader.setActiveRV(getCurrentHolderType());
         }
     }
 
@@ -1490,6 +1521,14 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
         return !mHasWorkApps && !isAppLibrary() && isCaddyEnabled();
     }
 
+    /**
+     * Whether the drawer shows Personal, Work and Categories: a work profile no longer hides the
+     * category tab, it moves to a third pill.
+     */
+    private boolean showThreePages() {
+        return mHasWorkApps && !isAppLibrary() && isCaddyEnabled();
+    }
+
     private boolean isCaddyEnabled() {
         return isAppLibrary() || !LauncherPrefs.DRAWER_LIST.get(mActivityContext.asContext());
     }
@@ -1516,9 +1555,24 @@ public class ActivityAllAppsContainerView<T extends Context & ActivityContext>
      * line up with holder types except for the category tab, which borrows the work page slot.
      */
     private int holderTypeForPage(int page) {
+        if (mUsingThreePages) {
+            return page == CATEGORIES_PAGE ? AdapterHolder.CATEGORIES : page;
+        }
         return page == AdapterHolder.WORK && mUsingCategoriesTab
                 ? AdapterHolder.CATEGORIES : page;
     }
+
+    /**
+     * The holder behind what is on screen. Unlike {@link #getCurrentPage()}, a third pager page is
+     * not mistaken for {@link AdapterHolder#SEARCH}, which shares its index.
+     */
+    private int getCurrentHolderType() {
+        if (isSearching()) return SEARCH;
+        return mViewPager == null ? AdapterHolder.MAIN : holderTypeForPage(mViewPager.getNextPage());
+    }
+
+    /** The category tiles' page when the drawer has Personal, Work and Categories. */
+    private static final int CATEGORIES_PAGE = 2;
 
     // Used by tests only
     private boolean isDescendantViewVisible(int viewId) {

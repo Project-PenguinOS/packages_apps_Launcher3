@@ -54,4 +54,19 @@
         android:textColor="@color/all_apps_tab_text"
         android:textSize="14sp"
         style="@style/AllAppsPersonalWorkTabStyle" />
+
+    <!-- With a work profile, the category tiles take a third pill. -->
+    <Button
+        android:id="@+id/tab_categories"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:minWidth="@dimen/all_apps_tabs_button_min_width"
+        android:paddingHorizontal="@dimen/all_apps_tabs_button_padding"
+        android:background="@drawable/all_apps_tabs_background"
+        android:text="@string/all_apps_categories_tab"
+        android:contentDescription="@string/all_apps_categories_tab"
+        android:textColor="@color/all_apps_tab_text"
+        android:textSize="14sp"
+        android:visibility="gone"
+        style="@style/AllAppsPersonalWorkTabStyle" />
 </com.android.launcher3.workprofile.PersonalWorkSlidingTabStrip>
